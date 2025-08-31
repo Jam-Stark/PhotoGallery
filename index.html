@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>My Photo Gallery</title>
-  <meta name="description" content="一个类似苹果官网风格的摄影作品集，支持通过 Google Drive 自动抓取相册并在 GitHub Pages 上部署。" />
+  <meta name="description" content="Baoquan Cao的摄影作品集，支持通过 Google Drive 自动抓取相册并在 GitHub Pages 上部署。" />
   <meta name="color-scheme" content="light dark" />
   <!-- Apple‑ish system font stack (SF Pro on Apple 设备，其他平台回退到系统字体) -->
   <style>
@@ -141,7 +141,6 @@
   <!-- 头部文案 -->
   <section class="hero container">
     <h1>摄影作品集</h1>
-    <p>遵循苹果官网的克制与留白，自动从 Google Drive 中拉取 <code>Photo for Gallery</code> 下的“照片群/照片”。</p>
     <p class="note" style="margin-top:8px">首次使用请点击“连接 Google Drive”并在弹窗中授权 <strong>只读</strong> 访问。</p>
   </section>
 
@@ -161,6 +160,8 @@
 
     <div id="gallery" class="grid" aria-live="polite" aria-busy="false"></div>
     <div id="emptyState" class="empty" style="display:none">没有找到照片。</div>
+    <div id="infiniteSentinel" style="height:1px"></div>
+
   </section>
 
   <!-- Lightbox 预览 -->
@@ -591,6 +592,9 @@ window.addEventListener('load', () => {
   } catch (e) { console.warn(e); }
 });
     
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.warn);
+}
 
   </script>
 </body>
