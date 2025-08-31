@@ -496,11 +496,10 @@
     if (e.key === 'ArrowLeft') nav(-1);
     if (e.key === 'ArrowRight') nav(1);
   });
-  // 左右大区域点击
-  const $hitPrev = document.getElementById('hitPrev');
-  const $hitNext = document.getElementById('hitNext');
-  $hitPrev.addEventListener('click', (e)=>{ e.stopPropagation(); nav(-1); });
-  $hitNext.addEventListener('click', (e)=>{ e.stopPropagation(); nav(1); });
+// 左右大区域点击
+$hitPrev.addEventListener('click', (e)=>{ e.stopPropagation(); nav(-1); });
+$hitNext.addEventListener('click', (e)=>{ e.stopPropagation(); nav(1); });
+
 
   // 工具
   function formatDate(meta){
