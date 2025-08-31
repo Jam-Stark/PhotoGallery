@@ -281,19 +281,18 @@
     $authStatus.classList.toggle('show', !signedIn);
   }
 
-  async function ensureToken() {
-    if (isApiKeyMode) return; // API Key 模式无需 token
-    if (!accessToken || Date.now() > tokenExpiresAt) {
-      await new Promise((resolve, reject) => {
-        try { tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' }); resolve(); }
-        catch (e) { reject(e); }
-      });
-    }
-  }); resolve(); }
-        catch (e) { reject(e); }
-      });
-    }
+async function ensureToken() {
+  if (isApiKeyMode) return; // API Key 模式无需 token
+  if (!accessToken || Date.now() > tokenExpiresAt) {
+    await new Promise((resolve, reject) => {
+      try {
+        tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+        resolve();
+      } catch (e) { reject(e); }
+    });
   }
+}
+
 
   // === Drive API helpers ===
   const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
@@ -333,18 +332,17 @@
     return res.blob();
   }
 
-  async function findRootFolderId() {
-    if (CONFIG.ROOT_FOLDER_ID) return CONFIG.ROOT_FOLDER_ID;
-    if (isApiKeyMode) throw new Error('API Key 模式必须在 CONFIG.ROOT_FOLDER_ID 填入根文件夹 ID（公开 Anyone with the link）。');
-    const q = `mimeType = 'application/vnd.google-apps.folder' and name = '${escapeQuotes(CONFIG.ROOT_FOLDER_NAME)}' and trashed = false`;
-    const data = await driveList(q, { orderBy: 'modifiedTime desc', pageSize: 10 });
-    if (!data.files?.length) throw new Error(`未找到名为 “${CONFIG.ROOT_FOLDER_NAME}” 的根文件夹。建议在配置中直接填入 ROOT_FOLDER_ID。`);
-    return data.files[0].id;
-  }' and trashed = false`;
-    const data = await driveList(q, { orderBy: 'modifiedTime desc', pageSize: 10 });
-    if (!data.files?.length) throw new Error(`未找到名为 “${CONFIG.ROOT_FOLDER_NAME}” 的根文件夹。建议在配置中直接填入 ROOT_FOLDER_ID。`);
-    return data.files[0].id;
+async function findRootFolderId() {
+  if (CONFIG.ROOT_FOLDER_ID) return CONFIG.ROOT_FOLDER_ID;
+  if (isApiKeyMode) {
+    throw new Error('API Key 模式必须在 CONFIG.ROOT_FOLDER_ID 填入根文件夹 ID（公开 Anyone with the link）。');
   }
+  const q = `mimeType = 'application/vnd.google-apps.folder' and name = '${escapeQuotes(CONFIG.ROOT_FOLDER_NAME)}' and trashed = false`;
+  const data = await driveList(q, { orderBy: 'modifiedTime desc', pageSize: 10 });
+  if (!data.files?.length) throw new Error(`未找到名为 “${CONFIG.ROOT_FOLDER_NAME}” 的根文件夹。建议在配置中直接填入 ROOT_FOLDER_ID。`);
+  return data.files[0].id;
+}
+
 
   async function listAlbums(parentId) {
     const q = `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
@@ -586,13 +584,13 @@
     alert((err && err.message) ? `错误：${err.message}` : '发生未知错误');
   }
 
-  // 自动初始化：若用户之前已授权，点击“连接”将静默续期；未点击不主动弹框，避免打扰。
-  window.addEventListener('load', () => {
-    try {
-      if (isApiKeyMode) { bootstrap(); }
-      else { initAuth(); }
-    } catch (e) { console.warn(e); }
-  });
+window.addEventListener('load', () => {
+  try {
+    if (isApiKeyMode) { uiSignedIn(true); bootstrap(); }
+    else { initAuth(); }
+  } catch (e) { console.warn(e); }
+});
+
   </script>
 </body>
 </html>
