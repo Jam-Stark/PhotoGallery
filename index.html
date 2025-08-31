@@ -85,7 +85,7 @@
       display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 12px; border: 1px solid color-mix(in oklab, var(--fg) 10%, transparent);
       padding: 10px 12px;
     }
-    .search input { flex: 1; font: inherit; background: transparent; border: 0; outline: none; color: var(--fg); }
+    .search input { flex: 1; font: inherit; background: transparent; border: 0; outline: none; color: --fg; }
 
     /* 照片网格 */
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 20px; }
@@ -202,12 +202,12 @@
    * 2) 填入 ROOT_FOLDER_ID 与 API_KEY。
    */
   const CONFIG = {
-    GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com", // ←← 必填：替换为你的 OAuth client_id
-    ROOT_FOLDER_NAME: "Photo for Gallery",                           // 根文件夹名称（用于兜底搜索）
-    ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",                                              // 建议填写具体 ID，提高稳定性与速度
+    GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com", // OAuth 未使用
+    ROOT_FOLDER_NAME: "Photo for Gallery",
+    ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",
     DRIVE_SCOPE: "https://www.googleapis.com/auth/drive.readonly",
-    API_KEY: "AIzaSyDzWCVEye-Rj3wCBdRIi9YAHq5i7UwHN5g",                                                // 可选：若使用公开文件夹+API Key 模式，可填入 Browser API Key 后免登录
-    PAGE_SIZE: 50,                                                    // 每次拉取的照片数量
+    API_KEY: "AIzaSyDzWCVEye-Rj3wCBdRIi9YAHq5i7UwHN5g",
+    PAGE_SIZE: 50,
   };
 
   // === 全局状态 ===
@@ -217,7 +217,7 @@
   let currentAlbumId = null;
   let photosCache = [];         // 当前相册的照片元数据
   let nextPageToken = null;     // 仅单相册分页用
-  let objectUrlMap = new Map(); // OAuth 模式才会用到
+  let objectUrlMap = new Map(); // 保留占位
 
   // Dom refs
   const el = (id) => document.getElementById(id);
@@ -249,14 +249,15 @@
   // === Drive API helpers ===
   const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
 
-  // 直链构造：避免 CORS/302
-  const viewUrl = (id) => `https://drive.google.com/uc?export=view&id=${id}`;
-  const downloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
+  // 直链构造（含 cache-bust）
+  const viewUrl = (id, t='') => `https://drive.google.com/uc?export=view&id=${id}${t ? `&t=${encodeURIComponent(t)}` : ''}`;
+  const downloadUrl = (id, t='') => `https://drive.google.com/uc?export=download&id=${id}${t ? `&t=${encodeURIComponent(t)}` : ''}`;
 
   async function driveList(q, { fields, orderBy, pageToken, pageSize } = {}) {
     const params = new URLSearchParams({
       q,
-      fields: fields || 'nextPageToken, files(id, name, mimeType, size, createdTime, thumbnailLink, webContentLink, imageMediaMetadata)',
+      // 加入 modifiedTime 以便做 cache-bust
+      fields: fields || 'nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime, thumbnailLink, webContentLink, imageMediaMetadata)',
       spaces: 'drive',
       includeItemsFromAllDrives: 'true', supportsAllDrives: 'true',
       pageSize: String(pageSize || CONFIG.PAGE_SIZE),
@@ -272,7 +273,6 @@
 
   async function findRootFolderId() {
     if (CONFIG.ROOT_FOLDER_ID) return CONFIG.ROOT_FOLDER_ID;
-    // API Key 模式必须提供 ID，避免同名文件夹/权限问题
     throw new Error('API Key 模式请在 CONFIG.ROOT_FOLDER_ID 填入根文件夹 ID（并确保公开）。');
   }
 
@@ -286,6 +286,39 @@
     const q = `'${parentId}' in parents and mimeType contains 'image/' and trashed = false`;
     const data = await driveList(q, { orderBy: 'createdTime desc', pageToken });
     return data; // { files, nextPageToken }
+  }
+
+  // === 通用图片加载（多源回退） ===
+  async function setImgWithFallback(imgEl, meta, { large=false } = {}) {
+    imgEl.referrerPolicy = 'no-referrer';
+    const t = meta.modifiedTime || meta.createdTime || '';
+    const candidates = [
+      viewUrl(meta.id, t),
+      downloadUrl(meta.id, t),
+    ];
+    if (meta.thumbnailLink) {
+      const size = large ? 4096 : 1600;
+      candidates.push(meta.thumbnailLink.replace(/=s\d+(\-c)?/, `=s${size}`));
+    }
+    for (const src of candidates) {
+      const ok = await trySet(imgEl, src);
+      if (ok) return true;
+    }
+    return false;
+
+    function trySet(el, src) {
+      return new Promise(resolve => {
+        const onload = () => { cleanup(); resolve(true); };
+        const onerror = () => { cleanup(); resolve(false); };
+        const cleanup = () => {
+          el.removeEventListener('load', onload);
+          el.removeEventListener('error', onerror);
+        };
+        el.addEventListener('load', onload, { once: true });
+        el.addEventListener('error', onerror, { once: true });
+        el.src = src;
+      });
+    }
   }
 
   // === UI 逻辑 ===
@@ -353,30 +386,18 @@
     $gallery.appendChild(card);
   }
 
-  // 懒加载：进入视窗时设置 <img src> 为 uc 直链
+  // 懒加载：进入视窗时加载（多源回退）
   const observer = new IntersectionObserver(async (entries) => {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
       const card = entry.target; observer.unobserve(card);
-      const idx = Number(card.dataset.index);
-      const meta = photosCache[idx];
+      const meta = photosCache[Number(card.dataset.index)];
       const imgEl = card.querySelector('img.img');
-
-      // 首选 uc 直链，失败则回退缩略图
-      const trySet = (src) => new Promise((resolve, reject) => {
-        imgEl.onload = () => { card.classList.add('loaded'); resolve(); };
-        imgEl.onerror = () => reject(new Error('img load error'));
-        imgEl.src = src;
-      });
-
       try {
-        await trySet(viewUrl(meta.id));
-      } catch {
-        if (meta.thumbnailLink) {
-          // 调大缩略图尺寸
-          const thumb = meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s1600');
-          try { await trySet(thumb); } catch (e2) { console.warn('缩略图也失败', e2); }
-        }
+        await setImgWithFallback(imgEl, meta, { large: false });
+        card.classList.add('loaded');
+      } catch (e) {
+        console.warn('图片加载失败', e);
       }
     }
   }, { rootMargin: '200px 0px' });
@@ -452,14 +473,13 @@
     }
   }
 
-  // Lightbox 逻辑
+  // Lightbox 逻辑（多源回退 + 下载直链）
   let lbIndex = -1;
   function openLightbox(index) {
     lbIndex = index;
     const meta = photosCache[lbIndex];
-    // 直接使用 uc 直链（无需 objectURL）
-    $lbImg.src = viewUrl(meta.id);
     $lbTitle.textContent = meta.name || '';
+    setImgWithFallback($lbImg, meta, { large: true });
     $btnDownload.onclick = () => downloadOriginal(meta);
     $lb.classList.add('open');
   }
@@ -469,8 +489,8 @@
     const next = lbIndex + delta;
     if (next < 0 || next >= photosCache.length) return;
     lbIndex = next; const meta = photosCache[lbIndex];
-    $lbImg.src = viewUrl(meta.id);
     $lbTitle.textContent = meta.name || '';
+    setImgWithFallback($lbImg, meta, { large: true });
   }
   $btnClose.addEventListener('click', closeLightbox);
   $hitPrev.addEventListener('click', () => nav(-1));
@@ -483,9 +503,9 @@
   });
 
   function downloadOriginal(meta) {
-    // 直接跳转下载链接，避免前端拉二进制
+    const t = meta.modifiedTime || meta.createdTime || '';
     const a = document.createElement('a');
-    a.href = downloadUrl(meta.id);
+    a.href = downloadUrl(meta.id, t);
     a.download = meta.name || 'photo';
     a.click();
   }
