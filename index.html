@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>My Photo Gallery</title>
+  <meta name="description" content="一个类似苹果官网风格的摄影作品集，支持通过 Google Drive 自动抓取相册并在 GitHub Pages 上部署。" />
+  <meta name="color-scheme" content="light dark" />
+  <!-- Apple‑ish system font stack (SF Pro on Apple 设备，其他平台回退到系统字体) -->
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #0a0a0a;
+      --muted: #6b7280;
+      --card: #f6f7f9;
+      --accent: #0071e3; /* Apple 蓝 */
+      --ring: rgba(0,113,227,.25);
+      --shadow: 0 10px 30px rgba(0,0,0,.08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b0c0e;
+        --fg: #f5f5f7;
+        --muted: #a1a1aa;
+        --card: #141518;
+        --accent: #0a84ff; /* macOS 深色模式系统蓝 */
+        --ring: rgba(10,132,255,.25);
+        --shadow: 0 10px 30px rgba(0,0,0,.35);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    a { color: inherit; text-decoration: none; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+    /* 顶部导航 */
+    header.nav {
+      position: sticky; top: 0; z-index: 40;
+      backdrop-filter: saturate(180%) blur(16px);
+      background: color-mix(in oklab, var(--bg) 85%, transparent);
+      border-bottom: 1px solid color-mix(in oklab, var(--fg) 8%, transparent);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+    .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 6px var(--ring); }
+    .actions { display: flex; gap: 8px; align-items: center; }
+    .btn {
+      appearance: none; border: 1px solid color-mix(in oklab, var(--fg) 10%, transparent); color: var(--fg);
+      background: linear-gradient(180deg, color-mix(in oklab, var(--card) 90%, transparent), color-mix(in oklab, var(--card) 100%, transparent));
+      padding: 10px 14px; border-radius: 12px; font-weight: 600; letter-spacing: .2px; cursor: pointer;
+      box-shadow: var(--shadow); transition: transform .15s ease, opacity .2s ease, border-color .2s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn.primary { background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 90%, transparent), var(--accent)); color: white; border-color: transparent; }
+    .btn.ghost { background: transparent; box-shadow: none; }
+
+    /* Hero */
+    .hero { padding: 50px 20px 10px; text-align: center; }
+    .hero h1 { font-size: clamp(28px, 6vw, 52px); margin: 0 0 10px; letter-spacing: .3px; }
+    .hero p { margin: 0; color: var(--muted); font-size: clamp(14px, 2.2vw, 18px); }
+
+    /* 相册分组（"照片群"） */
+    .albums-bar { position: relative; margin-top: 24px; }
+    .albums-scroll { display: flex; gap: 8px; overflow: auto; padding: 6px; scrollbar-width: thin; }
+    .chip {
+      white-space: nowrap; border: 1px solid color-mix(in oklab, var(--fg) 10%, transparent);
+      background: var(--card); padding: 8px 12px; border-radius: 999px; font-weight: 600; cursor: pointer; user-select: none;
+      transition: background .2s ease, border-color .2s ease, transform .15s ease;
+    }
+    .chip:hover { transform: translateY(-1px); }
+    .chip.active { background: color-mix(in oklab, var(--accent) 12%, var(--card)); border-color: color-mix(in oklab, var(--accent) 40%, transparent); }
+
+    /* 搜索与工具条 */
+    .toolbar { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin-top: 18px; }
+    .search {
+      display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 12px; border: 1px solid color-mix(in oklab, var(--fg) 10%, transparent);
+      padding: 10px 12px;
+    }
+    .search input { flex: 1; font: inherit; background: transparent; border: 0; outline: none; color: var(--fg); }
+
+    /* 照片网格 */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 20px; }
+    .card { position: relative; overflow: hidden; border-radius: 18px; background: var(--card); border: 1px solid color-mix(in oklab, var(--fg) 10%, transparent); box-shadow: var(--shadow); }
+    .card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent, transparent, rgba(0,0,0,.12)); pointer-events: none; opacity: 0; transition: opacity .25s ease; }
+    .card:hover::after { opacity: 1; }
+    .ph { display: block; width: 100%; aspect-ratio: 4/3; background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--fg) 4%, transparent), color-mix(in oklab, var(--fg) 4%, transparent) 10px, transparent 10px, transparent 20px); }
+    .img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.02); transition: opacity .35s ease, transform .35s ease; }
+    .card.loaded .img { opacity: 1; transform: none; }
+
+    .meta { position: absolute; left: 10px; bottom: 10px; right: 10px; display: flex; justify-content: space-between; gap: 10px; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.35); font-weight: 600; font-size: 13px; }
+
+    /* Lightbox */
+    .lightbox { position: fixed; inset: 0; display: none; place-items: center; background: color-mix(in oklab, var(--bg) 20%, rgba(0,0,0,.6)); backdrop-filter: blur(10px); z-index: 50; }
+    .lightbox.open { display: grid; }
+    .lb-inner { position: relative; width: min(92vw, 1400px); height: min(86vh, 900px); border-radius: 16px; overflow: hidden; background: #000; box-shadow: var(--shadow); }
+    .lb-img { width: 100%; height: 100%; object-fit: contain; background: #000; }
+    .lb-top { position: absolute; inset: 0 0 auto 0; display: flex; justify-content: space-between; padding: 10px; background: linear-gradient(180deg, rgba(0,0,0,.55), transparent); color: #fff; font-weight: 600; }
+    .lb-actions { display: flex; gap: 8px; }
+    .icon-btn { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff; cursor: pointer; }
+    .icon-btn:hover { background: rgba(255,255,255,.15); }
+    .lb-nav { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+    .lb-hit { pointer-events: auto; display: grid; place-items: center; width: 22%; height: 100%; }
+
+    /* 状态/提示 */
+    .empty { text-align: center; color: var(--muted); padding: 60px 10px; }
+    .note { font-size: 13px; color: var(--muted); }
+    .status { display: none; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--card); border: 1px solid color-mix(in oklab, var(--fg) 10%, transparent); }
+    .status.show { display: inline-flex; }
+    .dot-anim { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 6px var(--ring); animation: pulse 1.6s infinite; }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--ring); } 70% { box-shadow: 0 0 0 10px rgba(0,0,0,0); } 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); } }
+
+    /* 页脚 */
+    footer { margin: 40px 0 20px; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <!-- 顶部导航 -->
+  <header class="nav">
+    <div class="nav-inner container">
+      <div class="brand">
+        <div class="dot" aria-hidden="true"></div>
+        <span>My Photo Gallery</span>
+      </div>
+      <div class="actions">
+        <span id="authStatus" class="status"><span class="dot-anim"></span><span>等待授权…</span></span>
+        <button id="btnSignIn" class="btn primary" title="使用 Google 登录并授权读取 Drive">连接 Google Drive</button>
+        <button id="btnSignOut" class="btn ghost" style="display:none" title="断开授权">断开</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 头部文案 -->
+  <section class="hero container">
+    <h1>摄影作品集</h1>
+    <p>遵循苹果官网的克制与留白，自动从 Google Drive 中拉取 <code>Photo for Gallery</code> 下的“照片群/照片”。</p>
+    <p class="note" style="margin-top:8px">首次使用请点击“连接 Google Drive”并在弹窗中授权 <strong>只读</strong> 访问。</p>
+  </section>
+
+  <!-- 相册分组（照片群） + 搜索 -->
+  <section class="container">
+    <div class="albums-bar">
+      <div id="albums" class="albums-scroll" role="tablist" aria-label="相册分组"></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10.5" cy="10.5" r="7" stroke="currentColor" stroke-width="1.6"/></svg>
+        <input id="searchInput" type="search" placeholder="搜索文件名 / 关键字…" autocomplete="off" />
+      </div>
+      <button id="btnReload" class="btn" title="重新从 Drive 拉取">刷新</button>
+    </div>
+
+    <div id="gallery" class="grid" aria-live="polite" aria-busy="false"></div>
+    <div id="emptyState" class="empty" style="display:none">没有找到照片。</div>
+  </section>
+
+  <!-- Lightbox 预览 -->
+  <div id="lightbox" class="lightbox" aria-modal="true" role="dialog" aria-label="大图预览">
+    <div class="lb-inner">
+      <div class="lb-top">
+        <div id="lbTitle">&nbsp;</div>
+        <div class="lb-actions">
+          <button id="btnDownload" class="icon-btn" title="下载原图" aria-label="下载">
+            <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          </button>
+          <button id="btnClose" class="icon-btn" title="关闭" aria-label="关闭">
+            <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M6 6l12 12M6 18L18 6"/></svg>
+          </button>
+        </div>
+      </div>
+      <img id="lbImg" class="lb-img" alt="预览图片" />
+      <div class="lb-nav">
+        <div id="hitPrev" class="lb-hit" aria-label="上一张"></div>
+        <div id="hitNext" class="lb-hit" aria-label="下一张"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="container">
+    <div class="note">Powered by Google Drive API · Deploy on GitHub Pages · © <span id="year"></span></div>
+  </footer>
+
+  <!-- Google Identity Services（仅在需要用户授权时使用） -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <script>
+  /**
+   * 🔧 配置区：部署前请按需修改
+   * ------------------------------------------------------------
+   * 1) 在 Google Cloud Console 创建 OAuth 2.0 客户端（类型：Web），启用 Drive API，
+   *    将 GitHub Pages 域名加入“已授权的 JavaScript 来源”（例如：https://<username>.github.io）。
+   * 2) 将生成的 client_id 填入 GOOGLE_CLIENT_ID。
+   * 3) 推荐复制“Photo for Gallery”根文件夹的 ID 填入 ROOT_FOLDER_ID，避免同名歧义与权限问题。
+   *    若留空，代码会尝试按名称搜索该文件夹（可能有多重匹配）。
+   * 4) 文件结构：
+   *    Photo for Gallery（根）
+   *    ├─ 城市旅拍（一个“照片群”，实为子文件夹）
+   *    │   ├─ ***.jpg / .png / …（照片文件）
+   *    └─ 山与海（另一个“照片群”）
+   */
+  const CONFIG = {
+    GOOGLE_CLIENT_ID: "YOUR_CLIENT_ID.apps.googleusercontent.com", // ←← 必填：替换为你的 OAuth client_id
+    ROOT_FOLDER_NAME: "Photo for Gallery",                           // 根文件夹名称（用于兜底搜索）
+    ROOT_FOLDER_ID: "",                                              // 建议填写具体 ID，提高稳定性与速度
+    DRIVE_SCOPE: "https://www.googleapis.com/auth/drive.readonly",
+    PAGE_SIZE: 50,                                                    // 每次拉取的照片数量
+  };
+
+  // === 全局状态 ===
+  let accessToken = null;
+  let tokenExpiresAt = 0; // 时间戳（毫秒）
+  let tokenClient = null;
+  let rootFolderId = null;
+  let albumsCache = [];         // { id, name }
+  let currentAlbumId = null;
+  let photosCache = [];         // 当前相册的所有（或已加载）照片元数据
+  let nextPageToken = null;     // 继续分页用
+  let objectUrlMap = new Map(); // fileId -> objectURL（用于释放）
+
+  // Dom refs
+  const el = (id) => document.getElementById(id);
+  const $albums = el('albums');
+  const $gallery = el('gallery');
+  const $empty = el('emptyState');
+  const $btnSignIn = el('btnSignIn');
+  const $btnSignOut = el('btnSignOut');
+  const $authStatus = el('authStatus');
+  const $btnReload = el('btnReload');
+  const $search = el('searchInput');
+  const $lb = el('lightbox');
+  const $lbImg = el('lbImg');
+  const $lbTitle = el('lbTitle');
+  const $hitPrev = el('hitPrev');
+  const $hitNext = el('hitNext');
+  const $btnClose = el('btnClose');
+  const $btnDownload = el('btnDownload');
+
+  // 年份
+  el('year').textContent = new Date().getFullYear();
+
+  // 初始化 Google OAuth TokenClient
+  function initAuth() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      scope: CONFIG.DRIVE_SCOPE,
+      prompt: '', // 已授权则静默续期
+      callback: (resp) => {
+        if (resp && resp.access_token) {
+          accessToken = resp.access_token;
+          const expiresIn = Number(resp.expires_in || 3600);
+          tokenExpiresAt = Date.now() + (expiresIn - 60) * 1000; // 提前 60s 过期
+          uiSignedIn(true);
+          bootstrap().catch(showError);
+        } else if (resp && resp.error) {
+          showError(new Error(resp.error));
+        }
+      }
+    });
+  }
+
+  function uiSignedIn(signedIn) {
+    $btnSignIn.style.display = signedIn ? 'none' : '';
+    $btnSignOut.style.display = signedIn ? '' : 'none';
+    $authStatus.classList.toggle('show', !signedIn);
+  }
+
+  async function ensureToken() {
+    if (!accessToken || Date.now() > tokenExpiresAt) {
+      await new Promise((resolve, reject) => {
+        try { tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' }); resolve(); }
+        catch (e) { reject(e); }
+      });
+    }
+  }
+
+  // === Drive API helpers ===
+  const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
+
+  async function driveList(q, { fields, orderBy, pageToken, pageSize } = {}) {
+    await ensureToken();
+    const params = new URLSearchParams({
+      q,
+      fields: fields || 'nextPageToken, files(id, name, mimeType, size, createdTime, thumbnailLink, imageMediaMetadata)',
+      spaces: 'drive',
+      corpora: 'user',
+      includeItemsFromAllDrives: 'true', supportsAllDrives: 'true',
+      pageSize: String(pageSize || CONFIG.PAGE_SIZE),
+    });
+    if (orderBy) params.set('orderBy', orderBy);
+    if (pageToken) params.set('pageToken', pageToken);
+
+    const res = await fetch(`${DRIVE_BASE}/files?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!res.ok) throw new Error(`Drive list 错误：${res.status} ${await res.text()}`);
+    return res.json();
+  }
+
+  async function driveGetFileBlob(fileId) {
+    await ensureToken();
+    const res = await fetch(`${DRIVE_BASE}/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!res.ok) throw new Error(`下载失败：${res.status}`);
+    return res.blob();
+  }
+
+  async function findRootFolderId() {
+    if (CONFIG.ROOT_FOLDER_ID) return CONFIG.ROOT_FOLDER_ID;
+    // 按名称全局搜索，若有多个同名，取最近修改的一个
+    const q = `mimeType = 'application/vnd.google-apps.folder' and name = '${escapeQuotes(CONFIG.ROOT_FOLDER_NAME)}' and trashed = false`;
+    const data = await driveList(q, { orderBy: 'modifiedTime desc', pageSize: 10 });
+    if (!data.files?.length) throw new Error(`未找到名为 “${CONFIG.ROOT_FOLDER_NAME}” 的根文件夹。建议在配置中直接填入 ROOT_FOLDER_ID。`);
+    return data.files[0].id;
+  }
+
+  async function listAlbums(parentId) {
+    const q = `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+    const data = await driveList(q, { orderBy: 'name_natural' });
+    return data.files.map(f => ({ id: f.id, name: f.name }));
+  }
+
+  async function listPhotos(parentId, { pageToken } = {}) {
+    const q = `'${parentId}' in parents and mimeType contains 'image/' and trashed = false`;
+    const data = await driveList(q, { orderBy: 'createdTime desc', pageToken });
+    return data; // { files, nextPageToken }
+  }
+
+  // === UI 逻辑 ===
+  function renderAlbums(albums) {
+    $albums.innerHTML = '';
+    const allChip = makeChip({ id: '__all__', name: '全部' });
+    $albums.appendChild(allChip);
+    albums.forEach(a => $albums.appendChild(makeChip(a)));
+    setActiveChip('__all__');
+  }
+
+  function makeChip(album) {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.type = 'button';
+    chip.textContent = album.name;
+    chip.setAttribute('role', 'tab');
+    chip.dataset.albumId = album.id;
+    chip.addEventListener('click', () => {
+      setActiveChip(album.id);
+      onAlbumSelected(album.id);
+    });
+    return chip;
+  }
+
+  function setActiveChip(albumId) {
+    for (const child of $albums.children) child.classList.toggle('active', child.dataset.albumId === albumId);
+  }
+
+  function resetGallery() {
+    // 释放旧的 objectURL，避免内存泄露
+    for (const [fileId, url] of objectUrlMap) { URL.revokeObjectURL(url); }
+    objectUrlMap.clear();
+    $gallery.innerHTML = '';
+    $empty.style.display = 'none';
+    $gallery.setAttribute('aria-busy', 'true');
+  }
+
+  function addPhotoCard(meta, index) {
+    const card = document.createElement('figure');
+    card.className = 'card';
+    card.tabIndex = 0;
+    card.dataset.index = String(index);
+
+    const ph = document.createElement('div');
+    ph.className = 'ph';
+
+    const img = document.createElement('img');
+    img.className = 'img';
+    img.alt = meta.name;
+    img.loading = 'lazy';
+
+    const metaBar = document.createElement('figcaption');
+    metaBar.className = 'meta';
+    metaBar.innerHTML = `<span>${escapeHtml(meta.name)}</span><span>${prettyDate(meta.createdTime)}</span>`;
+
+    card.appendChild(ph);
+    card.appendChild(img);
+    card.appendChild(metaBar);
+
+    // 懒加载：进入视窗后再下载原图
+    observer.observe(card);
+
+    card.addEventListener('click', () => openLightbox(Number(card.dataset.index)));
+    card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(Number(card.dataset.index)); } });
+
+    $gallery.appendChild(card);
+  }
+
+  // 交叉观察，触发图片下载
+  const observer = new IntersectionObserver(async (entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const card = entry.target; observer.unobserve(card);
+      const idx = Number(card.dataset.index);
+      const meta = photosCache[idx];
+      try {
+        const imgEl = card.querySelector('img.img');
+        const blob = await driveGetFileBlob(meta.id);
+        const url = URL.createObjectURL(blob);
+        objectUrlMap.set(meta.id, url);
+        imgEl.src = url;
+        card.classList.add('loaded');
+      } catch (e) {
+        console.warn('图片加载失败', e);
+      }
+    }
+  }, { rootMargin: '200px 0px' });
+
+  async function onAlbumSelected(albumId) {
+    currentAlbumId = (albumId === '__all__') ? null : albumId;
+    resetGallery();
+    photosCache = [];
+    nextPageToken = null;
+    await loadMore();
+  }
+
+  async function loadMore() {
+    if (!rootFolderId) return;
+
+    let files = [];
+    let token = null;
+
+    if (currentAlbumId) {
+      const { files: part, nextPageToken: npt } = await listPhotos(currentAlbumId);
+      files = part; token = npt;
+    } else {
+      // 全部：遍历所有相册并合并（首次加载简单起见：逐相册抓取一页）
+      for (const a of albumsCache) {
+        const { files: part } = await listPhotos(a.id, { pageSize: Math.ceil(CONFIG.PAGE_SIZE / albumsCache.length) });
+        files = files.concat(part);
+      }
+      // 统一按时间排序
+      files.sort((a,b) => new Date(b.createdTime) - new Date(a.createdTime));
+    }
+
+    nextPageToken = token; // 当前 demo 仅对单个相册分页
+
+    // 过滤搜索关键字
+    const keyword = $search.value.trim().toLowerCase();
+    if (keyword) files = files.filter(f => (f.name || '').toLowerCase().includes(keyword));
+
+    if (!files.length && !$gallery.children.length) {
+      $gallery.setAttribute('aria-busy', 'false');
+      $empty.style.display = 'block';
+      return;
+    }
+
+    const startIndex = photosCache.length;
+    photosCache = photosCache.concat(files);
+    files.forEach((meta, i) => addPhotoCard(meta, startIndex + i));
+
+    $gallery.setAttribute('aria-busy', 'false');
+  }
+
+  // 搜索防抖
+  let searchTimer = null;
+  $search.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => onAlbumSelected(currentAlbumId || '__all__'), 300);
+  });
+
+  // 刷新
+  $btnReload.addEventListener('click', () => {
+    if (!rootFolderId) return;
+    onAlbumSelected(currentAlbumId || '__all__');
+  });
+
+  // 登录/退出
+  $btnSignIn.addEventListener('click', async () => {
+    try {
+      if (!tokenClient) initAuth();
+      await ensureToken();
+    } catch (e) { showError(e); }
+  });
+  $btnSignOut.addEventListener('click', () => {
+    // 仅清理内存中的 token；GIS 无强制注销 API（除非重定向到 Google 退出登录）。
+    accessToken = null; tokenExpiresAt = 0; uiSignedIn(false);
+    resetGallery(); $albums.innerHTML = '';
+  });
+
+  // 启动流程
+  async function bootstrap() {
+    $authStatus.classList.add('show');
+    try {
+      rootFolderId = await findRootFolderId();
+      albumsCache = await listAlbums(rootFolderId);
+      renderAlbums(albumsCache);
+      await onAlbumSelected('__all__');
+    } finally {
+      $authStatus.classList.remove('show');
+    }
+  }
+
+  // Lightbox 逻辑
+  let lbIndex = -1;
+  function openLightbox(index) {
+    lbIndex = index;
+    const meta = photosCache[lbIndex];
+    $lbImg.src = objectUrlMap.get(meta.id) || '';
+    $lbTitle.textContent = meta.name || '';
+    $btnDownload.onclick = () => downloadOriginal(meta);
+    $lb.classList.add('open');
+  }
+  function closeLightbox() { $lb.classList.remove('open'); }
+  function nav(delta) {
+    if (lbIndex < 0) return;
+    const next = lbIndex + delta;
+    if (next < 0 || next >= photosCache.length) return;
+    lbIndex = next; const meta = photosCache[lbIndex];
+    if (!objectUrlMap.get(meta.id)) {
+      driveGetFileBlob(meta.id).then(b => {
+        const url = URL.createObjectURL(b); objectUrlMap.set(meta.id, url); $lbImg.src = url;
+      }).catch(console.warn);
+    } else {
+      $lbImg.src = objectUrlMap.get(meta.id);
+    }
+    $lbTitle.textContent = meta.name || '';
+  }
+  $btnClose.addEventListener('click', closeLightbox);
+  $hitPrev.addEventListener('click', () => nav(-1));
+  $hitNext.addEventListener('click', () => nav(1));
+  window.addEventListener('keydown', (e) => {
+    if (!$lb.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') nav(-1);
+    if (e.key === 'ArrowRight') nav(1);
+  });
+
+  async function downloadOriginal(meta) {
+    try {
+      const blob = await driveGetFileBlob(meta.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = meta.name || 'photo'; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (e) { showError(e); }
+  }
+
+  // 工具函数
+  function escapeQuotes(s='') { return String(s).replaceAll("'", "\\'"); }
+  function escapeHtml(s='') { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+  function prettyDate(iso) {
+    try { const d = new Date(iso); return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'2-digit' }); } catch { return ''; }
+  }
+  function showError(err) {
+    console.error(err);
+    alert((err && err.message) ? `错误：${err.message}` : '发生未知错误');
+  }
+
+  // 自动初始化：若用户之前已授权，点击“连接”将静默续期；未点击不主动弹框，避免打扰。
+  window.addEventListener('load', () => { try { initAuth(); } catch (e) { console.warn(e); } });
+  </script>
+</body>
+</html>
