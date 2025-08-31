@@ -591,10 +591,6 @@ window.addEventListener('load', () => {
     else { initAuth(); }
   } catch (e) { console.warn(e); }
 });
-    
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(console.warn);
-}
 
   </script>
 </body>
