@@ -6,7 +6,7 @@
   <title>My Photo Gallery</title>
   <meta name="description" content="Baoquan Cao的摄影作品集，支持通过 Google Drive 自动抓取相册并在 GitHub Pages 上部署。" />
   <meta name="color-scheme" content="light dark" />
-  <!-- Apple‑ish system font stack (SF Pro on Apple 设备，其他平台回退到系统字体) -->
+  <!-- Apple-ish system font stack (SF Pro on Apple 设备，其他平台回退到系统字体) -->
   <style>
     :root {
       --bg: #ffffff;
@@ -131,9 +131,10 @@
         <span>My Photo Gallery</span>
       </div>
       <div class="actions">
-        <span id="authStatus" class="status"><span class="dot-anim"></span><span>等待授权…</span></span>
-        <button id="btnSignIn" class="btn primary" title="使用 Google 登录并授权读取 Drive">连接 Google Drive</button>
-        <button id="btnSignOut" class="btn ghost" style="display:none" title="断开授权">断开</button>
+        <!-- API Key 模式下隐藏这些按钮 -->
+        <span id="authStatus" class="status"><span class="dot-anim"></span><span>载入中…</span></span>
+        <button id="btnSignIn" class="btn primary" style="display:none">连接 Google Drive</button>
+        <button id="btnSignOut" class="btn ghost" style="display:none">断开</button>
       </div>
     </div>
   </header>
@@ -141,7 +142,9 @@
   <!-- 头部文案 -->
   <section class="hero container">
     <h1>摄影作品集</h1>
-    <p class="note" style="margin-top:8px">首次使用请点击“连接 Google Drive”并在弹窗中授权 <strong>只读</strong> 访问。</p>
+    <p class="note" style="margin-top:8px">
+      公开相册 · 自动抓取。若图片未显示，请检查 Google Drive 权限：<strong>任何知道链接的人（查看者）</strong>。
+    </p>
   </section>
 
   <!-- 相册分组（照片群） + 搜索 -->
@@ -189,23 +192,14 @@
     <div class="note">Powered by Google Drive API · Deploy on GitHub Pages · © <span id="year"></span></div>
   </footer>
 
-  <!-- Google Identity Services（仅在需要用户授权时使用） -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-
   <script>
   /**
    * 🔧 配置区：部署前请按需修改
    * ------------------------------------------------------------
-   * 1) 在 Google Cloud Console 创建 OAuth 2.0 客户端（类型：Web），启用 Drive API，
-   *    将 GitHub Pages 域名加入“已授权的 JavaScript 来源”（例如：https://<username>.github.io）。
-   * 2) 将生成的 client_id 填入 GOOGLE_CLIENT_ID。
-   * 3) 推荐复制“Photo for Gallery”根文件夹的 ID 填入 ROOT_FOLDER_ID，避免同名歧义与权限问题。
-   *    若留空，代码会尝试按名称搜索该文件夹（可能有多重匹配）。
-   * 4) 文件结构：
-   *    Photo for Gallery（根）
-   *    ├─ 城市旅拍（一个“照片群”，实为子文件夹）
-   *    │   ├─ ***.jpg / .png / …（照片文件）
-   *    └─ 山与海（另一个“照片群”）
+   * 使用公开文件夹 + API Key 模式，无需登录。
+   * 1) 将“Photo for Gallery”根文件夹设为“任何知道链接的人-查看者”，
+   *    子相册与其中的图片也需为公开（已有文件如未继承需要单独设置一次）。
+   * 2) 填入 ROOT_FOLDER_ID 与 API_KEY。
    */
   const CONFIG = {
     GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com", // ←← 必填：替换为你的 OAuth client_id
@@ -217,16 +211,13 @@
   };
 
   // === 全局状态 ===
-  let accessToken = null;
-  let tokenExpiresAt = 0; // 时间戳（毫秒）
-  let tokenClient = null;
-  const isApiKeyMode = !!CONFIG.API_KEY; // 若提供了 API Key，则走公共访问模式（无需 OAuth）
+  const isApiKeyMode = !!CONFIG.API_KEY;
   let rootFolderId = null;
   let albumsCache = [];         // { id, name }
   let currentAlbumId = null;
-  let photosCache = [];         // 当前相册的所有（或已加载）照片元数据
-  let nextPageToken = null;     // 继续分页用
-  let objectUrlMap = new Map(); // fileId -> objectURL（用于释放）
+  let photosCache = [];         // 当前相册的照片元数据
+  let nextPageToken = null;     // 仅单相册分页用
+  let objectUrlMap = new Map(); // OAuth 模式才会用到
 
   // Dom refs
   const el = (id) => document.getElementById(id);
@@ -249,100 +240,41 @@
   // 年份
   el('year').textContent = new Date().getFullYear();
 
-  // 初始化 Google OAuth TokenClient
-  function initAuth() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.GOOGLE_CLIENT_ID,
-      scope: CONFIG.DRIVE_SCOPE,
-      prompt: '', // 已授权则静默续期
-      callback: (resp) => {
-        if (resp && resp.access_token) {
-          accessToken = resp.access_token;
-          const expiresIn = Number(resp.expires_in || 3600);
-          tokenExpiresAt = Date.now() + (expiresIn - 60) * 1000; // 提前 60s 过期
-          uiSignedIn(true);
-          bootstrap().catch(showError);
-        } else if (resp && resp.error) {
-          showError(new Error(resp.error));
-        }
-      }
-    });
+  // === API Key 模式：隐藏授权 UI ===
+  if (isApiKeyMode) {
+    $btnSignIn.style.display = 'none';
+    $btnSignOut.style.display = 'none';
   }
-
-  function uiSignedIn(signedIn) {
-    if (isApiKeyMode) {
-      $btnSignIn.style.display = 'none';
-      $btnSignOut.style.display = 'none';
-      $authStatus.classList.remove('show');
-      return;
-    }
-    $btnSignIn.style.display = signedIn ? 'none' : '';
-    $btnSignOut.style.display = signedIn ? '' : 'none';
-    $authStatus.classList.toggle('show', !signedIn);
-  }
-
-async function ensureToken() {
-  if (isApiKeyMode) return; // API Key 模式无需 token
-  if (!accessToken || Date.now() > tokenExpiresAt) {
-    await new Promise((resolve, reject) => {
-      try {
-        tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
-        resolve();
-      } catch (e) { reject(e); }
-    });
-  }
-}
-
 
   // === Drive API helpers ===
   const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
 
+  // 直链构造：避免 CORS/302
+  const viewUrl = (id) => `https://drive.google.com/uc?export=view&id=${id}`;
+  const downloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
+
   async function driveList(q, { fields, orderBy, pageToken, pageSize } = {}) {
-    await ensureToken();
     const params = new URLSearchParams({
       q,
       fields: fields || 'nextPageToken, files(id, name, mimeType, size, createdTime, thumbnailLink, webContentLink, imageMediaMetadata)',
       spaces: 'drive',
       includeItemsFromAllDrives: 'true', supportsAllDrives: 'true',
       pageSize: String(pageSize || CONFIG.PAGE_SIZE),
+      key: CONFIG.API_KEY,
     });
     if (orderBy) params.set('orderBy', orderBy);
     if (pageToken) params.set('pageToken', pageToken);
-    if (isApiKeyMode) params.set('key', CONFIG.API_KEY);
 
-    const headers = isApiKeyMode ? {} : { Authorization: `Bearer ${accessToken}` };
-    const res = await fetch(`${DRIVE_BASE}/files?${params.toString()}`, { headers });
+    const res = await fetch(`${DRIVE_BASE}/files?${params.toString()}`);
     if (!res.ok) throw new Error(`Drive list 错误：${res.status} ${await res.text()}`);
     return res.json();
   }
 
-  async function driveGetFileBlob(fileId) {
-    await ensureToken();
-    if (isApiKeyMode) {
-      // 公开资源：用 API Key 直接下载
-      const url = `${DRIVE_BASE}/files/${fileId}?alt=media&key=${CONFIG.API_KEY}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`下载失败：${res.status}`);
-      return res.blob();
-    }
-    const res = await fetch(`${DRIVE_BASE}/files/${fileId}?alt=media`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!res.ok) throw new Error(`下载失败：${res.status}`);
-    return res.blob();
+  async function findRootFolderId() {
+    if (CONFIG.ROOT_FOLDER_ID) return CONFIG.ROOT_FOLDER_ID;
+    // API Key 模式必须提供 ID，避免同名文件夹/权限问题
+    throw new Error('API Key 模式请在 CONFIG.ROOT_FOLDER_ID 填入根文件夹 ID（并确保公开）。');
   }
-
-async function findRootFolderId() {
-  if (CONFIG.ROOT_FOLDER_ID) return CONFIG.ROOT_FOLDER_ID;
-  if (isApiKeyMode) {
-    throw new Error('API Key 模式必须在 CONFIG.ROOT_FOLDER_ID 填入根文件夹 ID（公开 Anyone with the link）。');
-  }
-  const q = `mimeType = 'application/vnd.google-apps.folder' and name = '${escapeQuotes(CONFIG.ROOT_FOLDER_NAME)}' and trashed = false`;
-  const data = await driveList(q, { orderBy: 'modifiedTime desc', pageSize: 10 });
-  if (!data.files?.length) throw new Error(`未找到名为 “${CONFIG.ROOT_FOLDER_NAME}” 的根文件夹。建议在配置中直接填入 ROOT_FOLDER_ID。`);
-  return data.files[0].id;
-}
-
 
   async function listAlbums(parentId) {
     const q = `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
@@ -384,7 +316,6 @@ async function findRootFolderId() {
   }
 
   function resetGallery() {
-    // 释放旧的 objectURL，避免内存泄露
     for (const [fileId, url] of objectUrlMap) { URL.revokeObjectURL(url); }
     objectUrlMap.clear();
     $gallery.innerHTML = '';
@@ -414,7 +345,6 @@ async function findRootFolderId() {
     card.appendChild(img);
     card.appendChild(metaBar);
 
-    // 懒加载：进入视窗后再下载原图
     observer.observe(card);
 
     card.addEventListener('click', () => openLightbox(Number(card.dataset.index)));
@@ -423,22 +353,30 @@ async function findRootFolderId() {
     $gallery.appendChild(card);
   }
 
-  // 交叉观察，触发图片下载
+  // 懒加载：进入视窗时设置 <img src> 为 uc 直链
   const observer = new IntersectionObserver(async (entries) => {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
       const card = entry.target; observer.unobserve(card);
       const idx = Number(card.dataset.index);
       const meta = photosCache[idx];
+      const imgEl = card.querySelector('img.img');
+
+      // 首选 uc 直链，失败则回退缩略图
+      const trySet = (src) => new Promise((resolve, reject) => {
+        imgEl.onload = () => { card.classList.add('loaded'); resolve(); };
+        imgEl.onerror = () => reject(new Error('img load error'));
+        imgEl.src = src;
+      });
+
       try {
-        const imgEl = card.querySelector('img.img');
-        const blob = await driveGetFileBlob(meta.id);
-        const url = URL.createObjectURL(blob);
-        objectUrlMap.set(meta.id, url);
-        imgEl.src = url;
-        card.classList.add('loaded');
-      } catch (e) {
-        console.warn('图片加载失败', e);
+        await trySet(viewUrl(meta.id));
+      } catch {
+        if (meta.thumbnailLink) {
+          // 调大缩略图尺寸
+          const thumb = meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s1600');
+          try { await trySet(thumb); } catch (e2) { console.warn('缩略图也失败', e2); }
+        }
       }
     }
   }, { rootMargin: '200px 0px' });
@@ -461,16 +399,15 @@ async function findRootFolderId() {
       const { files: part, nextPageToken: npt } = await listPhotos(currentAlbumId);
       files = part; token = npt;
     } else {
-      // 全部：遍历所有相册并合并（首次加载简单起见：逐相册抓取一页）
+      // 全部：逐相册抓取一页并合并
       for (const a of albumsCache) {
-        const { files: part } = await listPhotos(a.id, { pageSize: Math.ceil(CONFIG.PAGE_SIZE / albumsCache.length) });
+        const { files: part } = await listPhotos(a.id, { pageSize: Math.ceil(CONFIG.PAGE_SIZE / Math.max(albumsCache.length,1)) });
         files = files.concat(part);
       }
-      // 统一按时间排序
       files.sort((a,b) => new Date(b.createdTime) - new Date(a.createdTime));
     }
 
-    nextPageToken = token; // 当前 demo 仅对单个相册分页
+    nextPageToken = token;
 
     // 过滤搜索关键字
     const keyword = $search.value.trim().toLowerCase();
@@ -502,19 +439,6 @@ async function findRootFolderId() {
     onAlbumSelected(currentAlbumId || '__all__');
   });
 
-  // 登录/退出
-  $btnSignIn.addEventListener('click', async () => {
-    try {
-      if (!tokenClient) initAuth();
-      await ensureToken();
-    } catch (e) { showError(e); }
-  });
-  $btnSignOut.addEventListener('click', () => {
-    // 仅清理内存中的 token；GIS 无强制注销 API（除非重定向到 Google 退出登录）。
-    accessToken = null; tokenExpiresAt = 0; uiSignedIn(false);
-    resetGallery(); $albums.innerHTML = '';
-  });
-
   // 启动流程
   async function bootstrap() {
     $authStatus.classList.add('show');
@@ -533,7 +457,8 @@ async function findRootFolderId() {
   function openLightbox(index) {
     lbIndex = index;
     const meta = photosCache[lbIndex];
-    $lbImg.src = objectUrlMap.get(meta.id) || '';
+    // 直接使用 uc 直链（无需 objectURL）
+    $lbImg.src = viewUrl(meta.id);
     $lbTitle.textContent = meta.name || '';
     $btnDownload.onclick = () => downloadOriginal(meta);
     $lb.classList.add('open');
@@ -544,13 +469,7 @@ async function findRootFolderId() {
     const next = lbIndex + delta;
     if (next < 0 || next >= photosCache.length) return;
     lbIndex = next; const meta = photosCache[lbIndex];
-    if (!objectUrlMap.get(meta.id)) {
-      driveGetFileBlob(meta.id).then(b => {
-        const url = URL.createObjectURL(b); objectUrlMap.set(meta.id, url); $lbImg.src = url;
-      }).catch(console.warn);
-    } else {
-      $lbImg.src = objectUrlMap.get(meta.id);
-    }
+    $lbImg.src = viewUrl(meta.id);
     $lbTitle.textContent = meta.name || '';
   }
   $btnClose.addEventListener('click', closeLightbox);
@@ -563,18 +482,15 @@ async function findRootFolderId() {
     if (e.key === 'ArrowRight') nav(1);
   });
 
-  async function downloadOriginal(meta) {
-    try {
-      const blob = await driveGetFileBlob(meta.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = meta.name || 'photo'; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-    } catch (e) { showError(e); }
+  function downloadOriginal(meta) {
+    // 直接跳转下载链接，避免前端拉二进制
+    const a = document.createElement('a');
+    a.href = downloadUrl(meta.id);
+    a.download = meta.name || 'photo';
+    a.click();
   }
 
   // 工具函数
-  function escapeQuotes(s='') { return String(s).replaceAll("'", "\\'"); }
   function escapeHtml(s='') { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
   function prettyDate(iso) {
     try { const d = new Date(iso); return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'2-digit' }); } catch { return ''; }
@@ -584,19 +500,10 @@ async function findRootFolderId() {
     alert((err && err.message) ? `错误：${err.message}` : '发生未知错误');
   }
 
-window.addEventListener('load', () => {
-  try {
-    if (isApiKeyMode) {
-      uiSignedIn(true);
-      bootstrap().catch(showError); // 仅把这一行从 bootstrap() 改成带 .catch
-    } else {
-      initAuth();
-    }
-  } catch (e) {
-    console.warn(e);
-  }
-});
-
+  // 启动
+  window.addEventListener('load', () => {
+    try { bootstrap().catch(showError); } catch (e) { console.warn(e); }
+  });
   </script>
 </body>
 </html>
