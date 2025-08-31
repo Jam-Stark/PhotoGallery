@@ -27,6 +27,7 @@
       background:var(--bg); color:var(--fg);
       -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
     }
+    body.modal-open{overflow:hidden}
     a{color:inherit;text-decoration:none}
     .container{max-width:1200px;margin:0 auto;padding:20px}
 
@@ -111,7 +112,7 @@
   <!-- 顶部导航 -->
   <header class="nav">
     <div class="nav-inner container">
-      <div class="brand"><div class="dot" aria-hidden="true"></div><span>My Photo Gallery</span></div>
+      <div class="brand"><div class="dot" aria-hidden="true"></div><span>Baoquan's Photo Gallery</span></div>
       <div class="actions">
         <span id="authStatus" class="status"><span class="dot-anim"></span><span>载入中…</span></span>
         <button id="btnSignIn" class="btn primary" style="display:none">连接 Google Drive</button>
@@ -147,8 +148,9 @@
       <div class="lb-top">
         <div id="lbTitle">&nbsp;</div>
         <div class="lb-actions">
-          <button id="btnDownload" class="icon-btn" title="下载原图" aria-label="下载">
-            <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          <!-- 改为点赞按钮（占位） -->
+          <button id="btnLike" class="icon-btn" title="点赞" aria-label="点赞" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.8 13.1c0 4.9-8.8 8.9-8.8 8.9S3.2 18 3.2 13.1c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3z"/></svg>
           </button>
           <button id="btnClose" class="icon-btn" title="关闭" aria-label="关闭">
             <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M6 6l12 12M6 18L18 6"/></svg>
@@ -203,7 +205,7 @@
   const $hitPrev = el('hitPrev');
   const $hitNext = el('hitNext');
   const $btnClose = el('btnClose');
-  const $btnDownload = el('btnDownload');
+  const $btnLike = el('btnLike');
 
   el('year').textContent = new Date().getFullYear();
 
@@ -428,42 +430,77 @@
     } finally { $authStatus.classList.remove('show'); }
   }
 
-  // Lightbox
+  // =========================
+  // Lightbox + 点赞（占位）
+  // =========================
   let lbIndex = -1;
+  const LIKE_KEY = 'pg_likes_v1';
+
+  function getLikes(){ try{ return JSON.parse(localStorage.getItem(LIKE_KEY)||'{}'); }catch{ return {}; } }
+  function setLikes(o){ localStorage.setItem(LIKE_KEY, JSON.stringify(o)); }
+  function isLiked(id){ return !!getLikes()[id]; }
+  function toggleLike(id){
+    const map = getLikes();
+    map[id] = !map[id];
+    setLikes(map);
+    updateLikeUI(id);
+  }
+  function likeIcon(liked){
+    return liked
+      ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8.8-4-8.8-8.9c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3C21 17 12 21 12 21z"/></svg>'
+      : '<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.8 13.1c0 4.9-8.8 8.9-8.8 8.9S3.2 18 3.2 13.1c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3z"/></svg>';
+  }
+  function updateLikeUI(id){
+    const liked = isLiked(id);
+    $btnLike.setAttribute('aria-pressed', liked ? 'true' : 'false');
+    $btnLike.title = liked ? '已点赞' : '点赞';
+    $btnLike.innerHTML = likeIcon(liked);
+  }
+
   function openLightbox(index){
     lbIndex = index;
     const meta = photosCache[lbIndex];
+    document.body.classList.add('modal-open');
     $lbTitle.textContent = formatDate(meta);
     setImgWithFallback($lbImg, meta, { large:true });
-    $btnDownload.onclick = () => downloadOriginal(meta);
+    updateLikeUI(meta.id);
+    $btnLike.onclick = (e) => { e.stopPropagation(); toggleLike(meta.id); };
     $lb.classList.add('open');
   }
-  function closeLightbox(){ $lb.classList.remove('open'); }
+  function closeLightbox(){
+    $lb.classList.remove('open');
+    document.body.classList.remove('modal-open');
+    lbIndex = -1;
+    // 释放一下图片资源，避免持续占用显存
+    $lbImg.removeAttribute('src');
+  }
   function nav(delta){
     if (lbIndex < 0) return;
     const next = lbIndex + delta;
     if (next < 0 || next >= photosCache.length) return;
-    lbIndex = next; const meta = photosCache[lbIndex];
+    lbIndex = next;
+    const meta = photosCache[lbIndex];
     $lbTitle.textContent = formatDate(meta);
     setImgWithFallback($lbImg, meta, { large:true });
+    updateLikeUI(meta.id);
   }
-  $btnClose.addEventListener('click', closeLightbox);
-  $hitPrev.addEventListener('click', () => nav(-1));
-  $hitNext.addEventListener('click', () => nav(1));
+
+  // 关闭与导航事件
+  $btnClose.addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
+  // 点击遮罩空白处关闭（只在点击到外层遮罩时触发）
+  $lb.addEventListener('click', (e) => { if (e.target === $lb) closeLightbox(); });
+  // 键盘
   window.addEventListener('keydown', (e) => {
     if (!$lb.classList.contains('open')) return;
     if (e.key === 'Escape') closeLightbox();
     if (e.key === 'ArrowLeft') nav(-1);
     if (e.key === 'ArrowRight') nav(1);
   });
-
-  function downloadOriginal(meta){
-    const t = meta.modifiedTime || meta.createdTime || '';
-    const a = document.createElement('a');
-    a.href = downloadUrl(meta.id, t);
-    a.download = meta.name || 'photo';
-    a.click();
-  }
+  // 左右大区域点击
+  const $hitPrev = document.getElementById('hitPrev');
+  const $hitNext = document.getElementById('hitNext');
+  $hitPrev.addEventListener('click', (e)=>{ e.stopPropagation(); nav(-1); });
+  $hitNext.addEventListener('click', (e)=>{ e.stopPropagation(); nav(1); });
 
   // 工具
   function formatDate(meta){
@@ -475,6 +512,8 @@
     } catch { return ''; }
   }
   function showError(err){ console.error(err); alert((err && err.message) ? `错误：${err.message}` : '发生未知错误'); }
+
+  // 启动
   </script>
 </body>
 </html>
