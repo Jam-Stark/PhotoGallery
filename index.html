@@ -586,9 +586,15 @@ async function findRootFolderId() {
 
 window.addEventListener('load', () => {
   try {
-    if (isApiKeyMode) { uiSignedIn(true); bootstrap().catch(showError);
-    else { initAuth(); }
-  } catch (e) { console.warn(e); }
+    if (isApiKeyMode) {
+      uiSignedIn(true);
+      bootstrap().catch(showError); // 仅把这一行从 bootstrap() 改成带 .catch
+    } else {
+      initAuth();
+    }
+  } catch (e) {
+    console.warn(e);
+  }
 });
 
   </script>
