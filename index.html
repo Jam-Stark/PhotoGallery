@@ -456,13 +456,13 @@
     }
     function likeIcon(liked){
       return liked
-        ? '♥ 已喜欢'
+        ? '♥ like'
         : '<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.8 13.1c0 4.9-8.8 8.9-8.8 8.9S3.2 18 3.2 13.1c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3z"/></svg>';
     }
     function updateLikeUI(id){
       const liked = isLiked(id);
       $btnLike.setAttribute('aria-pressed', liked ? 'true' : 'false');
-      $btnLike.title = liked ? '已喜欢' : '点赞';
+      $btnLike.title = liked ? 'like' : '点赞';
       $btnLike.innerHTML = likeIcon(liked);
     }
 
