@@ -89,12 +89,16 @@
     .lightbox{position:fixed;inset:0;display:none;place-items:center;background:color-mix(in oklab,var(--bg) 20%,rgba(0,0,0,.6));backdrop-filter:blur(10px);z-index:50}
     .lightbox.open{display:grid}
     .lb-inner{position:relative;width:min(92vw,1400px);height:min(86vh,900px);border-radius:16px;overflow:hidden;background:#000;box-shadow:var(--shadow)}
-    .lb-img{width:100%;height:100%;object-fit:contain;background:#000}
-    .lb-top{position:absolute;inset:0 0 auto 0;display:flex;justify-content:space-between;padding:10px;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);color:#fff;font-weight:600}
+    .lb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+    .lb-top{position:absolute;inset:0 0 auto 0;display:flex;justify-content:space-between;align-items:center;padding:10px;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);color:#fff;font-weight:600;z-index:3;pointer-events:auto}
     .lb-actions{display:flex;gap:8px}
-    .icon-btn{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
+    .icon-btn{
+      display:inline-flex;align-items:center;gap:6px;
+      min-width:36px;height:36px;padding:0 10px;border-radius:10px;
+      border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;cursor:pointer
+    }
     .icon-btn:hover{background:rgba(255,255,255,.15)}
-    .lb-nav{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+    .lb-nav{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:2}
     .lb-hit{pointer-events:auto;display:grid;place-items:center;width:22%;height:100%}
 
     /* 状态/提示 */
@@ -148,11 +152,11 @@
       <div class="lb-top">
         <div id="lbTitle">&nbsp;</div>
         <div class="lb-actions">
-          <!-- 改为点赞按钮（占位） -->
-          <button id="btnLike" class="icon-btn" title="点赞" aria-label="点赞" aria-pressed="false">
+          <!-- 点赞：前端状态切换 -->
+          <button id="btnLike" class="icon-btn" title="点赞" aria-label="点赞" aria-pressed="false" type="button">
             <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.8 13.1c0 4.9-8.8 8.9-8.8 8.9S3.2 18 3.2 13.1c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3z"/></svg>
           </button>
-          <button id="btnClose" class="icon-btn" title="关闭" aria-label="关闭">
+          <button id="btnClose" class="icon-btn" title="关闭" aria-label="关闭" type="button">
             <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M6 6l12 12M6 18L18 6"/></svg>
           </button>
         </div>
@@ -165,354 +169,356 @@
   <footer class="container"><div class="note">Powered by Google Drive API · Deploy on GitHub Pages · © <span id="year"></span></div></footer>
 
   <script>
-  /**
-   * 配置：公开文件夹 + API Key 模式
-   */
-  const CONFIG = {
-    GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com",
-    ROOT_FOLDER_NAME: "Photo for Gallery",
-    ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",
-    DRIVE_SCOPE: "https://www.googleapis.com/auth/drive.readonly",
-    API_KEY: "AIzaSyDzWCVEye-Rj3wCBdRIi9YAHq5i7UwHN5g",
-    PAGE_SIZE: 50,
-  };
+  (function(){
+    // 防止重复执行（多次引入脚本时不会报“已声明”错误，也不会重复绑定）
+    if (window.__PG_BOUND__) { console.warn('Gallery already initialized.'); return; }
+    window.__PG_BOUND__ = true;
 
-  // 日期展示方式：'overlay'（左下角叠加）或 'below'（图片下方文字）
-  const DATE_STYLE = 'overlay';
-  document.documentElement.setAttribute('data-date-style', DATE_STYLE);
+    /**
+     * 配置：公开文件夹 + API Key 模式
+     */
+    const CONFIG = {
+      GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com",
+      ROOT_FOLDER_NAME: "Photo for Gallery",
+      ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",
+      DRIVE_SCOPE: "https://www.googleapis.com/auth/drive.readonly",
+      API_KEY: "AIzaSyDzWCVEye-Rj3wCBdRIi9YAHq5i7UwHN5g",
+      PAGE_SIZE: 50,
+    };
 
-  // === 全局状态 ===
-  const isApiKeyMode = !!CONFIG.API_KEY;
-  let rootFolderId = null;
-  let albumsCache = [];     // { id, name }
-  let currentAlbumId = null;
-  let photosCache = [];     // 当前相册
-  let nextPageToken = null;
+    // 日期展示方式：'overlay' 或 'below'
+    const DATE_STYLE = 'overlay';
+    document.documentElement.setAttribute('data-date-style', DATE_STYLE);
 
-  // Dom refs
-  const el = (id) => document.getElementById(id);
-  const $albums = el('albums');
-  const $gallery = el('gallery');
-  const $empty = el('emptyState');
-  const $btnSignIn = el('btnSignIn');
-  const $btnSignOut = el('btnSignOut');
-  const $authStatus = el('authStatus');
-  const $btnReload = el('btnReload');
-  const $search = el('searchInput');
-  const $lb = el('lightbox');
-  const $lbImg = el('lbImg');
-  const $lbTitle = el('lbTitle');
-  const $hitPrev = el('hitPrev');
-  const $hitNext = el('hitNext');
-  const $btnClose = el('btnClose');
-  const $btnLike = el('btnLike');
+    // === 全局状态 ===
+    const isApiKeyMode = !!CONFIG.API_KEY;
+    let rootFolderId = null;
+    let albumsCache = [];     // { id, name }
+    let currentAlbumId = null;
+    let photosCache = [];     // 当前相册
+    let nextPageToken = null;
 
-  el('year').textContent = new Date().getFullYear();
+    // Dom refs
+    const el = (id) => document.getElementById(id);
+    const $albums = el('albums');
+    const $gallery = el('gallery');
+    const $empty = el('emptyState');
+    const $btnSignIn = el('btnSignIn');
+    const $btnSignOut = el('btnSignOut');
+    const $authStatus = el('authStatus');
+    const $btnReload = el('btnReload');
+    const $search = el('searchInput');
+    const $lb = el('lightbox');
+    const $lbImg = el('lbImg');
+    const $lbTitle = el('lbTitle');
+    const $hitPrev = el('hitPrev');
+    const $hitNext = el('hitNext');
+    const $btnClose = el('btnClose');
+    const $btnLike = el('btnLike');
 
-  if (isApiKeyMode) { $btnSignIn.style.display = 'none'; $btnSignOut.style.display = 'none'; }
+    el('year').textContent = new Date().getFullYear();
+    if (isApiKeyMode) { $btnSignIn.style.display = 'none'; $btnSignOut.style.display = 'none'; }
 
-  // === Drive API ===
-  const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
-  const viewUrl = (id, t='') => `https://drive.google.com/uc?export=view&id=${id}${t ? `&t=${encodeURIComponent(t)}` : ''}`;
-  const downloadUrl = (id, t='') => `https://drive.google.com/uc?export=download&id=${id}${t ? `&t=${encodeURIComponent(t)}` : ''}`;
+    // === Drive API ===
+    const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
+    const viewUrl = (id, t='') => `https://drive.google.com/uc?export=view&id=${id}${t ? `&t=${encodeURIComponent(t)}` : ''}`;
+    const downloadUrl = (id, t='') => `https://drive.google.com/uc?export=download&id=${id}${t ? `&t=${encodeURIComponent(t)}` : ''}`;
 
-  async function driveList(q, { fields, orderBy, pageToken, pageSize } = {}) {
-    const params = new URLSearchParams({
-      q,
-      fields: fields || 'nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime, thumbnailLink, webContentLink, imageMediaMetadata)',
-      spaces: 'drive',
-      includeItemsFromAllDrives: 'true', supportsAllDrives: 'true',
-      pageSize: String(pageSize || CONFIG.PAGE_SIZE),
-      key: CONFIG.API_KEY,
-    });
-    if (orderBy) params.set('orderBy', orderBy);
-    if (pageToken) params.set('pageToken', pageToken);
-    const res = await fetch(`${DRIVE_BASE}/files?${params.toString()}`);
-    if (!res.ok) throw new Error(`Drive list 错误：${res.status} ${await res.text()}`);
-    return res.json();
-  }
-
-  async function findRootFolderId() {
-    if (CONFIG.ROOT_FOLDER_ID) return CONFIG.ROOT_FOLDER_ID;
-    throw new Error('请在 CONFIG.ROOT_FOLDER_ID 填入根文件夹 ID（并确保公开）。');
-  }
-
-  async function listAlbums(parentId) {
-    const q = `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-    const data = await driveList(q, { orderBy: 'name_natural' });
-    return data.files.map(f => ({ id: f.id, name: f.name }));
-  }
-
-  async function listPhotos(parentId, { pageToken } = {}) {
-    const q = `'${parentId}' in parents and mimeType contains 'image/' and trashed = false`;
-    const data = await driveList(q, { orderBy: 'createdTime desc', pageToken });
-    return data; // { files, nextPageToken }
-  }
-
-  // === 图片加载（多源回退） ===
-  async function setImgWithFallback(imgEl, meta, { large=false } = {}) {
-    imgEl.referrerPolicy = 'no-referrer';
-    const t = meta.modifiedTime || meta.createdTime || '';
-    const candidates = [
-      viewUrl(meta.id, t),
-      downloadUrl(meta.id, t),
-    ];
-    if (meta.thumbnailLink) {
-      const size = large ? 4096 : 1600;
-      candidates.push(meta.thumbnailLink.replace(/=s\d+(\-c)?/, `=s${size}`));
-    }
-    for (const src of candidates) {
-      const ok = await trySet(imgEl, src);
-      if (ok) return true;
-    }
-    return false;
-
-    function trySet(el, src) {
-      return new Promise(resolve => {
-        const onload = () => { cleanup(); resolve(true); };
-        const onerror = () => { cleanup(); resolve(false); };
-        const cleanup = () => { el.removeEventListener('load', onload); el.removeEventListener('error', onerror); };
-        el.addEventListener('load', onload, { once:true });
-        el.addEventListener('error', onerror, { once:true });
-        el.src = src;
+    async function driveList(q, { fields, orderBy, pageToken, pageSize } = {}) {
+      const params = new URLSearchParams({
+        q,
+        fields: fields || 'nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime, thumbnailLink, webContentLink, imageMediaMetadata)',
+        spaces: 'drive',
+        includeItemsFromAllDrives: 'true', supportsAllDrives: 'true',
+        pageSize: String(pageSize || CONFIG.PAGE_SIZE),
+        key: CONFIG.API_KEY,
       });
+      if (orderBy) params.set('orderBy', orderBy);
+      if (pageToken) params.set('pageToken', pageToken);
+      const res = await fetch(`${DRIVE_BASE}/files?${params.toString()}`);
+      if (!res.ok) throw new Error(`Drive list 错误：${res.status} ${await res.text()}`);
+      return res.json();
     }
-  }
 
-  // === UI ===
-  function renderAlbums(albums) {
-    $albums.innerHTML = '';
-    const allChip = makeChip({ id: '__all__', name: '全部' });
-    $albums.appendChild(allChip);
-    albums.forEach(a => $albums.appendChild(makeChip(a)));
-    setActiveChip('__all__');
-  }
-
-  function makeChip(album) {
-    const chip = document.createElement('button');
-    chip.className = 'chip';
-    chip.type = 'button';
-    chip.textContent = album.name;
-    chip.setAttribute('role','tab');
-    chip.dataset.albumId = album.id;
-    chip.addEventListener('click', () => { setActiveChip(album.id); onAlbumSelected(album.id); });
-    return chip;
-  }
-  function setActiveChip(albumId){ for(const c of $albums.children){ c.classList.toggle('active', c.dataset.albumId===albumId); } }
-
-  function resetGallery(){
-    $gallery.innerHTML = '';
-    $empty.style.display = 'none';
-    $gallery.setAttribute('aria-busy','true');
-  }
-
-  // Masonry 卡片
-  function addPhotoCard(meta, index){
-    const card = document.createElement('figure');
-    card.className = 'card';
-    card.tabIndex = 0;
-    card.dataset.index = String(index);
-
-    // 占位比例（利用 EXIF 宽高，减少布局抖动）
-    const w = meta?.imageMediaMetadata?.width || 4;
-    const h = meta?.imageMediaMetadata?.height || 3;
-    const pad = (h / w) * 100;
-
-    const wrap = document.createElement('div');
-    wrap.className = 'thumb-wrap';
-    wrap.style.paddingTop = pad + '%';
-
-    const img = document.createElement('img');
-    img.className = 'thumb';
-    img.alt = 'photo';
-    img.loading = 'lazy';
-    wrap.appendChild(img);
-
-    // 日期
-    const dateStr = formatDate(meta);
-    const overlay = document.createElement('figcaption');
-    overlay.className = 'date-overlay';
-    overlay.textContent = dateStr;
-
-    const caption = document.createElement('figcaption');
-    caption.className = 'date-caption';
-    caption.textContent = dateStr;
-
-    card.appendChild(wrap);
-    card.appendChild(overlay);
-    card.appendChild(caption);
-
-    // 懒加载
-    observer.observe(card);
-
-    // 打开 Lightbox
-    card.addEventListener('click', () => openLightbox(Number(card.dataset.index)));
-    card.addEventListener('keydown', (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openLightbox(Number(card.dataset.index)); } });
-
-    $gallery.appendChild(card);
-  }
-
-  // 进入视窗时加载图片
-  const observer = new IntersectionObserver(async (entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      const card = entry.target; observer.unobserve(card);
-      const meta = photosCache[Number(card.dataset.index)];
-      const imgEl = card.querySelector('img.thumb');
-      try {
-        await setImgWithFallback(imgEl, meta, { large:false });
-        card.classList.add('loaded');
-      } catch (e) { console.warn('图片加载失败', e); }
+    async function findRootFolderId() {
+      if (CONFIG.ROOT_FOLDER_ID) return CONFIG.ROOT_FOLDER_ID;
+      throw new Error('请在 CONFIG.ROOT_FOLDER_ID 填入根文件夹 ID（并确保公开）。');
     }
-  }, { rootMargin: '200px 0px' });
 
-  async function onAlbumSelected(albumId){
-    currentAlbumId = (albumId === '__all__') ? null : albumId;
-    resetGallery();
-    photosCache = [];
-    nextPageToken = null;
-    await loadMore();
-  }
+    async function listAlbums(parentId) {
+      const q = `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+      const data = await driveList(q, { orderBy: 'name_natural' });
+      return data.files.map(f => ({ id: f.id, name: f.name }));
+    }
 
-  async function loadMore(){
-    if (!rootFolderId) return;
-    let files = [];
-    let token = null;
+    async function listPhotos(parentId, { pageToken } = {}) {
+      const q = `'${parentId}' in parents and mimeType contains 'image/' and trashed = false`;
+      const data = await driveList(q, { orderBy: 'createdTime desc', pageToken });
+      return data; // { files, nextPageToken }
+    }
 
-    if (currentAlbumId) {
-      const { files: part, nextPageToken: npt } = await listPhotos(currentAlbumId);
-      files = part; token = npt;
-    } else {
-      for (const a of albumsCache) {
-        const { files: part } = await listPhotos(a.id, { pageSize: Math.ceil(CONFIG.PAGE_SIZE / Math.max(albumsCache.length,1)) });
-        files = files.concat(part);
+    // === 图片加载（多源回退） ===
+    async function setImgWithFallback(imgEl, meta, { large=false } = {}) {
+      imgEl.referrerPolicy = 'no-referrer';
+      const t = meta.modifiedTime || meta.createdTime || '';
+      const candidates = [
+        viewUrl(meta.id, t),
+        downloadUrl(meta.id, t),
+      ];
+      if (meta.thumbnailLink) {
+        const size = large ? 4096 : 1600;
+        candidates.push(meta.thumbnailLink.replace(/=s\d+(\-c)?/, `=s${size}`));
       }
-      files.sort((a,b) => new Date(b.createdTime) - new Date(a.createdTime));
+      for (const src of candidates) {
+        const ok = await trySet(imgEl, src);
+        if (ok) return true;
+      }
+      return false;
+
+      function trySet(el, src) {
+        return new Promise(resolve => {
+          const onload = () => { cleanup(); resolve(true); };
+          const onerror = () => { cleanup(); resolve(false); };
+          const cleanup = () => { el.removeEventListener('load', onload); el.removeEventListener('error', onerror); };
+          el.addEventListener('load', onload, { once:true });
+          el.addEventListener('error', onerror, { once:true });
+          el.src = src;
+        });
+      }
     }
 
-    nextPageToken = token;
+    // === UI ===
+    function renderAlbums(albums) {
+      $albums.innerHTML = '';
+      const allChip = makeChip({ id: '__all__', name: '全部' });
+      $albums.appendChild(allChip);
+      albums.forEach(a => $albums.appendChild(makeChip(a)));
+      setActiveChip('__all__');
+    }
 
-    const keyword = $search.value.trim().toLowerCase();
-    if (keyword) files = files.filter(f => (f.name || '').toLowerCase().includes(keyword));
+    function makeChip(album) {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.type = 'button';
+      chip.textContent = album.name;
+      chip.setAttribute('role','tab');
+      chip.dataset.albumId = album.id;
+      chip.addEventListener('click', () => { setActiveChip(album.id); onAlbumSelected(album.id); });
+      return chip;
+    }
+    function setActiveChip(albumId){ for(const c of $albums.children){ c.classList.toggle('active', c.dataset.albumId===albumId); } }
 
-    if (!files.length && !$gallery.children.length) {
+    function resetGallery(){
+      $gallery.innerHTML = '';
+      $empty.style.display = 'none';
+      $gallery.setAttribute('aria-busy','true');
+    }
+
+    // Masonry 卡片
+    function addPhotoCard(meta, index){
+      const card = document.createElement('figure');
+      card.className = 'card';
+      card.tabIndex = 0;
+      card.dataset.index = String(index);
+
+      // 占位比例（利用 EXIF 宽高，减少布局抖动）
+      const w = meta?.imageMediaMetadata?.width || 4;
+      const h = meta?.imageMediaMetadata?.height || 3;
+      const pad = (h / w) * 100;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'thumb-wrap';
+      wrap.style.paddingTop = pad + '%';
+
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.alt = 'photo';
+      img.loading = 'lazy';
+      wrap.appendChild(img);
+
+      // 日期
+      const dateStr = formatDate(meta);
+      const overlay = document.createElement('figcaption');
+      overlay.className = 'date-overlay';
+      overlay.textContent = dateStr;
+
+      const caption = document.createElement('figcaption');
+      caption.className = 'date-caption';
+      caption.textContent = dateStr;
+
+      card.appendChild(wrap);
+      card.appendChild(overlay);
+      card.appendChild(caption);
+
+      // 懒加载
+      observer.observe(card);
+
+      // 打开 Lightbox
+      card.addEventListener('click', () => openLightbox(Number(card.dataset.index)));
+      card.addEventListener('keydown', (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openLightbox(Number(card.dataset.index)); } });
+
+      $gallery.appendChild(card);
+    }
+
+    // 进入视窗时加载图片
+    const observer = new IntersectionObserver(async (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const card = entry.target; observer.unobserve(card);
+        const meta = photosCache[Number(card.dataset.index)];
+        const imgEl = card.querySelector('img.thumb');
+        try {
+          await setImgWithFallback(imgEl, meta, { large:false });
+          card.classList.add('loaded');
+        } catch (e) { console.warn('图片加载失败', e); }
+      }
+    }, { rootMargin: '200px 0px' });
+
+    async function onAlbumSelected(albumId){
+      currentAlbumId = (albumId === '__all__') ? null : albumId;
+      resetGallery();
+      photosCache = [];
+      nextPageToken = null;
+      await loadMore();
+    }
+
+    async function loadMore(){
+      if (!rootFolderId) return;
+      let files = [];
+      let token = null;
+
+      if (currentAlbumId) {
+        const { files: part, nextPageToken: npt } = await listPhotos(currentAlbumId);
+        files = part; token = npt;
+      } else {
+        for (const a of albumsCache) {
+          const { files: part } = await listPhotos(a.id, { pageSize: Math.ceil(CONFIG.PAGE_SIZE / Math.max(albumsCache.length,1)) });
+          files = files.concat(part);
+        }
+        files.sort((a,b) => new Date(b.createdTime) - new Date(a.createdTime));
+      }
+
+      nextPageToken = token;
+
+      const keyword = $search.value.trim().toLowerCase();
+      if (keyword) files = files.filter(f => (f.name || '').toLowerCase().includes(keyword));
+
+      if (!files.length && !$gallery.children.length) {
+        $gallery.setAttribute('aria-busy','false');
+        $empty.style.display = 'block';
+        return;
+      }
+
+      const startIndex = photosCache.length;
+      photosCache = photosCache.concat(files);
+      files.forEach((meta, i) => addPhotoCard(meta, startIndex + i));
+
       $gallery.setAttribute('aria-busy','false');
-      $empty.style.display = 'block';
-      return;
     }
 
-    const startIndex = photosCache.length;
-    photosCache = photosCache.concat(files);
-    files.forEach((meta, i) => addPhotoCard(meta, startIndex + i));
+    // 搜索防抖
+    let searchTimer = null;
+    $search.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => onAlbumSelected(currentAlbumId || '__all__'), 300);
+    });
 
-    $gallery.setAttribute('aria-busy','false');
-  }
+    // 刷新
+    $btnReload.addEventListener('click', () => { if (!rootFolderId) return; onAlbumSelected(currentAlbumId || '__all__'); });
 
-  // 搜索防抖
-  let searchTimer = null;
-  $search.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => onAlbumSelected(currentAlbumId || '__all__'), 300);
-  });
+    // 启动
+    window.addEventListener('load', () => { try { bootstrap().catch(showError); } catch(e){ console.warn(e); } });
+    async function bootstrap(){
+      $authStatus.classList.add('show');
+      try {
+        rootFolderId = await findRootFolderId();
+        albumsCache = await listAlbums(rootFolderId);
+        renderAlbums(albumsCache);
+        await onAlbumSelected('__all__');
+      } finally { $authStatus.classList.remove('show'); }
+    }
 
-  // 刷新
-  $btnReload.addEventListener('click', () => { if (!rootFolderId) return; onAlbumSelected(currentAlbumId || '__all__'); });
+    // =========================
+    // Lightbox + 点赞（前端占位）
+    // =========================
+    let lbIndex = -1;
+    const LIKE_KEY = 'pg_likes_v1';
 
-  // 启动
-  window.addEventListener('load', () => { try { bootstrap().catch(showError); } catch(e){ console.warn(e); } });
-  async function bootstrap(){
-    $authStatus.classList.add('show');
-    try {
-      rootFolderId = await findRootFolderId();
-      albumsCache = await listAlbums(rootFolderId);
-      renderAlbums(albumsCache);
-      await onAlbumSelected('__all__');
-    } finally { $authStatus.classList.remove('show'); }
-  }
+    function getLikes(){ try{ return JSON.parse(localStorage.getItem(LIKE_KEY)||'{}'); }catch{ return {}; } }
+    function setLikes(o){ localStorage.setItem(LIKE_KEY, JSON.stringify(o)); }
+    function isLiked(id){ return !!getLikes()[id]; }
+    function toggleLike(id){
+      const map = getLikes();
+      map[id] = !map[id];
+      if (!map[id]) delete map[id];
+      setLikes(map);
+      updateLikeUI(id);
+    }
+    function likeIcon(liked){
+      return liked
+        ? '♥ 已喜欢'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.8 13.1c0 4.9-8.8 8.9-8.8 8.9S3.2 18 3.2 13.1c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3z"/></svg>';
+    }
+    function updateLikeUI(id){
+      const liked = isLiked(id);
+      $btnLike.setAttribute('aria-pressed', liked ? 'true' : 'false');
+      $btnLike.title = liked ? '已喜欢' : '点赞';
+      $btnLike.innerHTML = likeIcon(liked);
+    }
 
-  // =========================
-  // Lightbox + 点赞（占位）
-  // =========================
-  let lbIndex = -1;
-  const LIKE_KEY = 'pg_likes_v1';
+    function openLightbox(index){
+      lbIndex = index;
+      const meta = photosCache[lbIndex];
+      document.body.classList.add('modal-open');
+      $lbTitle.textContent = formatDate(meta);
+      setImgWithFallback($lbImg, meta, { large:true });
+      updateLikeUI(meta.id);
+      $btnLike.onclick = (e) => { e.stopPropagation(); toggleLike(meta.id); };
+      $lb.classList.add('open');
+    }
+    function closeLightbox(){
+      $lb.classList.remove('open');
+      document.body.classList.remove('modal-open');
+      lbIndex = -1;
+      $lbImg.removeAttribute('src'); // 释放显存
+    }
+    function nav(delta){
+      if (lbIndex < 0) return;
+      const next = lbIndex + delta;
+      if (next < 0 || next >= photosCache.length) return;
+      lbIndex = next;
+      const meta = photosCache[lbIndex];
+      $lbTitle.textContent = formatDate(meta);
+      setImgWithFallback($lbImg, meta, { large:true });
+      updateLikeUI(meta.id);
+    }
 
-  function getLikes(){ try{ return JSON.parse(localStorage.getItem(LIKE_KEY)||'{}'); }catch{ return {}; } }
-  function setLikes(o){ localStorage.setItem(LIKE_KEY, JSON.stringify(o)); }
-  function isLiked(id){ return !!getLikes()[id]; }
-  function toggleLike(id){
-    const map = getLikes();
-    map[id] = !map[id];
-    setLikes(map);
-    updateLikeUI(id);
-  }
-  function likeIcon(liked){
-    return liked
-      ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8.8-4-8.8-8.9c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3C21 17 12 21 12 21z"/></svg>'
-      : '<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.8 13.1c0 4.9-8.8 8.9-8.8 8.9S3.2 18 3.2 13.1c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3z"/></svg>';
-  }
-  function updateLikeUI(id){
-    const liked = isLiked(id);
-    $btnLike.setAttribute('aria-pressed', liked ? 'true' : 'false');
-    $btnLike.title = liked ? '已点赞' : '点赞';
-    $btnLike.innerHTML = likeIcon(liked);
-  }
+    // 关闭与导航事件
+    $btnClose.addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
+    // 点击遮罩空白处关闭（只在点击到外层遮罩时触发）
+    $lb.addEventListener('click', (e) => { if (e.target === $lb) closeLightbox(); });
+    // 键盘
+    window.addEventListener('keydown', (e) => {
+      if (!$lb.classList.contains('open')) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') nav(-1);
+      if (e.key === 'ArrowRight') nav(1);
+    });
+    // 左右大区域点击
+    $hitPrev.addEventListener('click', (e)=>{ e.stopPropagation(); nav(-1); });
+    $hitNext.addEventListener('click', (e)=>{ e.stopPropagation(); nav(1); });
 
-  function openLightbox(index){
-    lbIndex = index;
-    const meta = photosCache[lbIndex];
-    document.body.classList.add('modal-open');
-    $lbTitle.textContent = formatDate(meta);
-    setImgWithFallback($lbImg, meta, { large:true });
-    updateLikeUI(meta.id);
-    $btnLike.onclick = (e) => { e.stopPropagation(); toggleLike(meta.id); };
-    $lb.classList.add('open');
-  }
-  function closeLightbox(){
-    $lb.classList.remove('open');
-    document.body.classList.remove('modal-open');
-    lbIndex = -1;
-    // 释放一下图片资源，避免持续占用显存
-    $lbImg.removeAttribute('src');
-  }
-  function nav(delta){
-    if (lbIndex < 0) return;
-    const next = lbIndex + delta;
-    if (next < 0 || next >= photosCache.length) return;
-    lbIndex = next;
-    const meta = photosCache[lbIndex];
-    $lbTitle.textContent = formatDate(meta);
-    setImgWithFallback($lbImg, meta, { large:true });
-    updateLikeUI(meta.id);
-  }
-
-  // 关闭与导航事件
-  $btnClose.addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
-  // 点击遮罩空白处关闭（只在点击到外层遮罩时触发）
-  $lb.addEventListener('click', (e) => { if (e.target === $lb) closeLightbox(); });
-  // 键盘
-  window.addEventListener('keydown', (e) => {
-    if (!$lb.classList.contains('open')) return;
-    if (e.key === 'Escape') closeLightbox();
-    if (e.key === 'ArrowLeft') nav(-1);
-    if (e.key === 'ArrowRight') nav(1);
-  });
-// 左右大区域点击
-$hitPrev.addEventListener('click', (e)=>{ e.stopPropagation(); nav(-1); });
-$hitNext.addEventListener('click', (e)=>{ e.stopPropagation(); nav(1); });
-
-
-  // 工具
-  function formatDate(meta){
-    const ts = meta.createdTime || meta.modifiedTime || meta?.imageMediaMetadata?.time;
-    try {
-      const d = new Date(ts);
-      if (isNaN(+d)) return '';
-      return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
-    } catch { return ''; }
-  }
-  function showError(err){ console.error(err); alert((err && err.message) ? `错误：${err.message}` : '发生未知错误'); }
-
-  // 启动
+    // 工具
+    function formatDate(meta){
+      const ts = meta.createdTime || meta.modifiedTime || meta?.imageMediaMetadata?.time;
+      try {
+        const d = new Date(ts);
+        if (isNaN(+d)) return '';
+        return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+      } catch { return ''; }
+    }
+    function showError(err){ console.error(err); alert((err && err.message) ? `错误：${err.message}` : '发生未知错误'); }
+  })();
   </script>
 </body>
 </html>
