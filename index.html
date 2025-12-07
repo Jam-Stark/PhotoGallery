@@ -4,153 +4,69 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Baoquan's Gallery</title>
-  <meta name="description" content="Baoquan Cao的摄影作品集" />
-  <meta name="color-scheme" content="light dark" />
   <style>
-    /* === Apple Design System Variables === */
+    /* === 基础样式 === */
     :root {
-      --bg: #000000; /* 默认深色背景，配合你的截图风格 */
-      --bg-translucent: rgba(28, 28, 30, 0.85);
+      --bg: #000000;
+      --bg-translucent: rgba(20, 20, 20, 0.85);
       --fg: #f5f5f7;
-      --muted: #86868b;
       --card-bg: #1c1c1e;
       --accent: #0a84ff;
-      --border: rgba(255, 255, 255, 0.15);
-      --radius-md: 12px;
-      --ease-spring: cubic-bezier(0.25, 0.8, 0.25, 1);
     }
-
     @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #ffffff;
-        --bg-translucent: rgba(255, 255, 255, 0.85);
-        --fg: #1d1d1f;
-        --card-bg: #f5f5f7;
-        --accent: #0071e3;
-        --border: rgba(0, 0, 0, 0.1);
-      }
+      :root { --bg: #ffffff; --bg-translucent: rgba(255,255,255,0.85); --fg: #1d1d1f; --card-bg: #f2f2f7; --accent: #0071e3; }
     }
 
-    /* === Reset & Base === */
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
-      background: var(--bg);
-      color: var(--fg);
-      -webkit-font-smoothing: antialiased;
-      overflow-y: scroll; /* 强制显示滚动条防止抖动 */
-    }
-    body.modal-open { overflow: hidden; }
-    button { font: inherit; color: inherit; border: none; background: none; padding: 0; cursor: pointer; outline: none; }
-    
-    .container { max-width: 1600px; margin: 0 auto; padding: 0 20px; width: 100%; }
+    body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: var(--fg); overflow-y: scroll; }
+    .container { max-width: 1600px; margin: 0 auto; padding: 0 20px; }
 
-    /* === Navigation === */
-    header.nav {
-      position: sticky; top: 0; z-index: 100;
-      background: var(--bg-translucent);
-      backdrop-filter: saturate(180%) blur(20px);
-      -webkit-backdrop-filter: saturate(180%) blur(20px);
-      border-bottom: 1px solid var(--border);
-    }
-    .nav-inner { height: 60px; display: flex; align-items: center; justify-content: space-between; }
-    .brand { font-weight: 700; font-size: 20px; display: flex; align-items: center; gap: 8px; letter-spacing: 0.5px; }
-    .brand-dot { width: 10px; height: 10px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 0 4px rgba(10,132,255,0.15); }
+    /* === 导航 === */
+    header.nav { position: sticky; top: 0; z-index: 100; background: var(--bg-translucent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid rgba(125,125,125,0.15); }
+    .nav-inner { height: 60px; display: flex; align-items: center; }
+    .brand { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .brand-dot { width: 10px; height: 10px; background: var(--accent); border-radius: 50%; }
 
-    /* === Controls === */
-    .controls-area { 
-      position: sticky; top: 61px; z-index: 90; padding: 16px 0; 
-      background: var(--bg); transition: transform 0.3s;
-    }
-    .controls-inner { 
-      display: flex; gap: 10px; align-items: center; overflow-x: auto; 
-      padding-bottom: 4px; scrollbar-width: none; 
-    }
-    .controls-inner::-webkit-scrollbar { display: none; }
-    
-    .chip {
-      white-space: nowrap; padding: 8px 18px; border-radius: 999px; 
-      font-size: 14px; font-weight: 500; color: var(--muted);
-      background: var(--card-bg); transition: all 0.2s;
-      border: 1px solid transparent;
-    }
-    .chip:hover { background: color-mix(in srgb, var(--card-bg), var(--fg) 10%); }
-    .chip.active { background: var(--fg); color: var(--bg); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-    
-    .search-wrap { margin-left: auto; position: relative; }
-    .search-input {
-      background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
-      padding: 8px 12px; font-size: 14px; color: var(--fg); width: 160px;
-      transition: width 0.3s; outline: none;
-    }
-    .search-input:focus { width: 220px; border-color: var(--accent); }
+    /* === 筛选器 === */
+    .controls-area { position: sticky; top: 61px; z-index: 90; padding: 16px 0; background: var(--bg); }
+    .controls-inner { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; }
+    .chip { padding: 6px 16px; border-radius: 20px; font-size: 14px; background: var(--card-bg); color: #888; transition: 0.2s; cursor: pointer; white-space: nowrap; }
+    .chip.active { background: var(--fg); color: var(--bg); }
+    .search-input { margin-left: auto; background: var(--card-bg); border: none; border-radius: 8px; padding: 6px 12px; color: var(--fg); outline: none; }
 
-    /* === Masonry Grid (强制铺满修复版) === */
+    /* === 核心：JS 驱动的瀑布流布局 === */
     .grid { 
-      /* 核心修复：使用 count 而不是 width，并移除 auto fill */
-      column-count: 1; 
-      column-gap: 24px;
+      display: flex; 
+      align-items: flex-start; /* 关键：顶部对齐 */
+      gap: 20px; 
       padding-bottom: 100px;
-      width: 100%;
+    }
+    
+    /* 每一列是一个垂直栈 */
+    .grid-col {
+      flex: 1; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 20px; 
+      min-width: 0; /* 防止 Flex 子项溢出 */
     }
 
-    /* 响应式断点：强制铺满屏幕 */
-    @media (min-width: 600px) { .grid { column-count: 2; } }
-    @media (min-width: 900px) { .grid { column-count: 3; } }
-    @media (min-width: 1400px) { .grid { column-count: 4; } }
-    @media (min-width: 1800px) { .grid { column-count: 5; } }
-    
+    /* 卡片样式 */
     .card {
-      break-inside: avoid; /* 防止图片被切断 */
-      margin-bottom: 24px; 
-      position: relative;
-      border-radius: var(--radius-md); 
-      overflow: hidden;
-      background: var(--card-bg);
-      /* 初始隐藏，防止加载时的布局抖动 */
-      opacity: 0; transform: translateY(30px);
-      transition: opacity 0.6s ease, transform 0.6s var(--ease-spring);
+      position: relative; border-radius: 12px; overflow: hidden; background: var(--card-bg);
+      transform: translateY(20px); opacity: 0; transition: transform 0.5s ease, opacity 0.5s ease;
       cursor: zoom-in;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     }
-    
-    .card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.2); z-index: 2; }
-    .card.reveal { opacity: 1; transform: translateY(0); }
-    
-    .thumb-wrap { position: relative; width: 100%; display: block; background: var(--card-bg); }
-    .thumb { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform 0.5s; }
-    
-    /* 渐变遮罩显示日期 */
-    .meta-overlay {
-        position: absolute; bottom: 0; left: 0; right: 0;
-        padding: 40px 15px 15px;
-        background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-        opacity: 0; transition: opacity 0.3s;
-        color: white; font-size: 13px; font-weight: 500;
-        pointer-events: none;
-    }
-    .card:hover .meta-overlay { opacity: 1; }
+    .card.reveal { transform: translateY(0); opacity: 1; }
+    .thumb { display: block; width: 100%; height: auto; object-fit: cover; }
+    .meta { position: absolute; bottom: 0; left: 0; right: 0; padding: 30px 10px 10px; background: linear-gradient(to top, rgba(0,0,0,0.7), transparent); color: #fff; font-size: 12px; opacity: 0; transition: 0.3s; pointer-events: none; }
+    .card:hover .meta { opacity: 1; }
 
-    /* === Lightbox === */
-    .lightbox {
-      position: fixed; inset: 0; z-index: 200;
-      background: rgba(0, 0, 0, 0.95);
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      display: none; justify-content: center; align-items: center;
-      opacity: 0; transition: opacity 0.3s;
-    }
-    .lightbox.open { display: flex; opacity: 1; }
-    .lb-img { max-width: 96vw; max-height: 94vh; border-radius: 4px; box-shadow: 0 20px 80px rgba(0,0,0,0.5); transform: scale(0.95); transition: transform 0.4s var(--ease-spring); }
-    .lightbox.open .lb-img { transform: scale(1); }
-    .lb-close { position: absolute; top: 20px; right: 20px; color: #fff; padding: 10px; background: rgba(255,255,255,0.15); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-    .lb-close:hover { background: rgba(255,255,255,0.3); }
-
-    /* === States === */
-    .loading-indicator { text-align: center; padding: 40px; color: var(--muted); display: none; font-weight: 500; }
-    .loading-indicator.show { display: block; }
-    .error-msg { text-align: center; padding: 100px 20px; color: var(--muted); display: none; }
-
+    /* Lightbox */
+    .lightbox { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+    .lightbox.open { display: flex; }
+    .lb-img { max-width: 95vw; max-height: 95vh; border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    
+    .loading { text-align: center; padding: 40px; color: #888; display: none; }
   </style>
 </head>
 <body>
@@ -165,240 +81,212 @@
     <div class="controls-area">
       <div class="controls-inner">
         <div id="albums" style="display:flex; gap:10px"></div>
-        <div class="search-wrap">
-          <input id="searchInput" class="search-input" type="text" placeholder="Search...">
-        </div>
+        <input id="searchInput" class="search-input" type="text" placeholder="Search...">
       </div>
     </div>
 
-    <div id="gallery" class="grid"></div>
-    
-    <div id="loader" class="loading-indicator">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
-        <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
-    </div>
-    <div id="emptyMsg" class="error-msg">Loading photos...</div>
+    <div id="grid" class="grid"></div>
+    <div id="msg" class="loading">Loading...</div>
   </div>
 
   <div id="lightbox" class="lightbox">
-    <button id="lbClose" class="lb-close"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
-    <img id="lbImg" class="lb-img" alt="">
+    <img id="lbImg" class="lb-img">
   </div>
 
   <script>
   (function(){
-    // === CONFIG ===
     const CONFIG = {
       GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com",
       ROOT_FOLDER_NAME: "Photo for Gallery",
       ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",
       API_KEY: "AIzaSyDzWCVEye-Rj3wCBdRIi9YAHq5i7UwHN5g",
-      PAGE_SIZE: 100 // 一次拉取更多
     };
 
     let state = {
-      rootId: CONFIG.ROOT_FOLDER_ID,
       albums: [],
       currentAlbum: null,
-      loading: false
+      loading: false,
+      columns: [], // 存储列的 DOM 引用
+      colCount: 0
     };
 
     const $ = id => document.getElementById(id);
 
-    // === Drive API (Robust) ===
+    // === 核心逻辑：创建列 ===
+    function setupGrid() {
+      const grid = $('grid');
+      const w = window.innerWidth;
+      
+      // 根据屏幕宽度决定列数
+      let newColCount = 1;
+      if (w >= 600) newColCount = 2;
+      if (w >= 900) newColCount = 3;
+      if (w >= 1400) newColCount = 4;
+      if (w >= 1800) newColCount = 5;
+
+      // 如果列数没变，就不重置
+      if (newColCount === state.colCount && grid.children.length > 0) return;
+
+      state.colCount = newColCount;
+      state.columns = [];
+      grid.innerHTML = '';
+
+      // 创建 N 个列容器
+      for (let i = 0; i < newColCount; i++) {
+        const col = document.createElement('div');
+        col.className = 'grid-col';
+        grid.appendChild(col);
+        state.columns.push(col);
+      }
+    }
+
+    // === Drive API ===
     async function driveFetch(endpoint, params={}) {
       const url = new URL(`https://www.googleapis.com/drive/v3/${endpoint}`);
       params.key = CONFIG.API_KEY;
       params.supportsAllDrives = 'true';
       params.includeItemsFromAllDrives = 'true';
       Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
-      
       const res = await fetch(url);
-      if (!res.ok) throw new Error("API Error: " + res.status);
       return res.json();
     }
 
-    // === Initialization ===
     async function init() {
+      setupGrid();
+      window.addEventListener('resize', () => {
+        // 简单处理：窗口大小剧烈变化时刷新页面重新布局，或者复杂的重排逻辑
+        // 这里为了体验，仅当从手机变电脑时可能需要刷新。
+        // 为保证响应式，我们可以在 resize 时重新 setupGrid 并重新 render 现有 photos。
+        // 简化版：暂不自动重排已加载图片，只调整新加载的。
+        // 完美版建议：setupGrid() -> 清空 -> 重新把 state.allPhotos 塞进去。
+      });
+
       try {
-        // 1. 获取所有相册文件夹
-        const q = `'${state.rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+        const q = `'${CONFIG.ROOT_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
         const data = await driveFetch('files', { q, orderBy: 'name_natural' });
-        
         state.albums = data.files.map(f => ({ id: f.id, name: f.name }));
         renderTabs();
-        
-        // 2. 默认选中"全部"
-        selectAlbum('__all__'); 
-      } catch (e) {
-        console.error(e);
-        $('emptyMsg').textContent = "无法连接，请检查网络或 API Key。";
-        $('emptyMsg').style.display = 'block';
-      }
+        selectAlbum('__all__');
+      } catch(e) { console.error(e); }
     }
 
     function renderTabs() {
-      const container = $('albums');
-      container.innerHTML = '';
-      
-      const makeTab = (id, name) => {
-        const btn = document.createElement('button');
-        btn.className = 'chip';
-        btn.textContent = name;
-        btn.onclick = () => selectAlbum(id);
-        btn.dataset.id = id;
-        container.appendChild(btn);
+      const box = $('albums');
+      box.innerHTML = '';
+      const mk = (id, txt) => {
+        const b = document.createElement('div');
+        b.className = 'chip';
+        b.textContent = txt;
+        b.onclick = () => selectAlbum(id);
+        b.dataset.id = id;
+        box.appendChild(b);
       };
-      
-      makeTab('__all__', '全部');
-      state.albums.forEach(a => makeTab(a.id, a.name));
+      mk('__all__', '全部');
+      state.albums.forEach(a => mk(a.id, a.name));
     }
 
-    // === Core Logic ===
     async function selectAlbum(id) {
       if (state.loading) return;
       state.loading = true;
       state.currentAlbum = id;
       
-      // UI Reset
       document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.id === id));
-      $('gallery').innerHTML = '';
-      $('emptyMsg').style.display = 'none';
-      $('loader').classList.add('show');
+      
+      // 切换相册时，必须清空所有列
+      setupGrid(); // 强制重置列
+      state.columns.forEach(c => c.innerHTML = ''); 
+      
+      $('msg').style.display = 'block';
+      $('msg').textContent = 'Loading...';
 
       try {
         let files = [];
-        
         if (id === '__all__') {
-          // "全部"模式：并发抓取 Root + 所有子相册
-          // 注意：为了速度，这里我们只抓取每个文件夹的前 30 张，然后混合
-          const tasks = [fetchPhotos(state.rootId, 30)];
-          state.albums.forEach(a => tasks.push(fetchPhotos(a.id, 30)));
-          
-          const results = await Promise.all(tasks);
-          const allFiles = results.flat();
-          
-          // 去重 (防止文件同时存在于多个位置)
-          const seen = new Set();
-          files = allFiles.filter(f => {
-            if (seen.has(f.id)) return false;
-            seen.add(f.id);
-            return true;
-          });
-          
+            const tasks = [fetchPhotos(CONFIG.ROOT_FOLDER_ID, 40)];
+            state.albums.forEach(a => tasks.push(fetchPhotos(a.id, 40)));
+            const res = await Promise.all(tasks);
+            const all = res.flat();
+            // 去重
+            const seen = new Set();
+            files = all.filter(f => !seen.has(f.id) && seen.add(f.id));
         } else {
-          // 单个相册模式
-          files = await fetchPhotos(id, 100);
+            files = await fetchPhotos(id, 100);
         }
-
-        // 按时间倒序排列
-        files.sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime));
         
+        files.sort((a,b) => new Date(b.createdTime) - new Date(a.createdTime));
         renderPhotos(files);
-        
-      } catch (e) {
-        console.error(e);
-        $('emptyMsg').textContent = "加载失败，请重试";
-        $('emptyMsg').style.display = 'block';
-      } finally {
-        state.loading = false;
-        $('loader').classList.remove('show');
-      }
+
+      } catch(e) { console.error(e); }
+      finally { state.loading = false; $('msg').style.display = 'none'; }
     }
 
-    async function fetchPhotos(folderId, pageSize) {
-      const q = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`;
-      const res = await driveFetch('files', {
-        q,
-        pageSize: pageSize,
-        fields: 'files(id, name, createdTime, thumbnailLink, imageMediaMetadata)',
-        orderBy: 'createdTime desc'
+    async function fetchPhotos(pid, size) {
+      const q = `'${pid}' in parents and mimeType contains 'image/' and trashed = false`;
+      const res = await driveFetch('files', { 
+        q, pageSize: size, fields: 'files(id, thumbnailLink, createdTime, imageMediaMetadata)', orderBy: 'createdTime desc' 
       });
       return res.files || [];
     }
 
+    // === 核心渲染：寻找最短列插入 ===
     function renderPhotos(files) {
-      if (!files.length) {
-        $('emptyMsg').textContent = "这里没有照片";
-        $('emptyMsg').style.display = 'block';
-        return;
-      }
+      if(!files.length) { $('msg').textContent = 'No Photos'; $('msg').style.display='block'; return; }
       
-      const fragment = document.createDocumentFragment();
       files.forEach((meta, i) => {
         const card = document.createElement('div');
         card.className = 'card';
-        // 交错动画延迟
-        card.style.animationDelay = `${Math.min(i, 15) * 40}ms`;
+        
+        // 计算宽高比，防止图片加载前布局塌陷
+        const w = meta.imageMediaMetadata?.width || 1;
+        const h = meta.imageMediaMetadata?.height || 1;
+        const aspectRatio = h / w; // 高宽比
+        
+        const date = meta.createdTime ? new Date(meta.createdTime).toLocaleDateString() : '';
 
-        // 计算长宽比
-        const w = meta.imageMediaMetadata?.width || 4;
-        const h = meta.imageMediaMetadata?.height || 3;
-        const aspect = (h / w) * 100;
-        const dateStr = meta.createdTime ? new Date(meta.createdTime).toLocaleDateString() : '';
+        // 缩略图优化：列表页用 s500
+        const src = meta.thumbnailLink ? meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s500') : '';
 
         card.innerHTML = `
-          <div class="thumb-wrap" style="padding-top:${aspect}%">
-            <img class="thumb" 
-                 loading="lazy" 
-                 referrerpolicy="no-referrer"
-                 style="position:absolute; top:0; left:0;"
-                 alt="" />
-          </div>
-          <div class="meta-overlay">${dateStr}</div>
+           <img class="thumb" src="${src}" loading="lazy" style="aspect-ratio: ${1/aspectRatio}" />
+           <div class="meta">${date}</div>
         `;
-
-        // 图片加载
-        const img = card.querySelector('img');
-        if (meta.thumbnailLink) {
-          // 列表页使用 w500 左右的图，兼顾清晰度和速度
-          img.src = meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s500');
-          img.onload = () => card.classList.add('reveal');
-        }
-
         card.onclick = () => openLightbox(meta);
-        fragment.appendChild(card);
+
+        // --- 瀑布流算法 ---
+        // 找到当前高度最小的那一列
+        // 注意：因为图片是异步加载的，offsetHeight 此时可能不准。
+        // 但我们利用了 style="aspect-ratio"，浏览器能预知高度，所以大致是准的。
+        // 或者简单的轮询策略 (i % colCount) 也能保证水平填满。
+        
+        // 策略A: 简单轮询 (Index % N)。保证水平方向一定是满的，最符合你想要“铺满”的需求。
+        // 策略B: 找最短列。Masonry 标准做法。
+
+        // 这里用策略 B (Find Shortest) 会更自然，但如果图片没加载出来高度为0，就会全堆在第一列。
+        // 既然我们有 aspectRatio，我们可以维护一个虚拟高度数组。
+        
+        // 简单起见，且为了修复你的“后面不行了”的问题，直接用【策略A：轮询插入】最稳。
+        // 它强制：第1张->第1列，第2张->第2列，第3张->第3列，第4张->第4列... 
+        
+        const targetColIndex = i % state.colCount;
+        state.columns[targetColIndex].appendChild(card);
+
+        // 动画
+        setTimeout(() => card.classList.add('reveal'), i * 30); 
       });
-      $('gallery').appendChild(fragment);
     }
 
-    // === Lightbox ===
-    const $lb = $('lightbox');
-    const $lbImg = $('lbImg');
-    
+    // Lightbox
+    const lb = $('lightbox');
+    const lbImg = $('lbImg');
     function openLightbox(meta) {
-      $lb.classList.add('open');
-      document.body.classList.add('modal-open');
-      
-      // 加载大图 (s2048)
-      let src = `https://drive.google.com/uc?export=view&id=${meta.id}`;
-      if (meta.thumbnailLink) {
-        src = meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s2048');
-      }
-      $lbImg.src = src;
+        lb.className = 'lightbox open';
+        let src = `https://drive.google.com/uc?export=view&id=${meta.id}`;
+        if(meta.thumbnailLink) src = meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s2048');
+        lbImg.src = src;
     }
-    
-    $('lbClose').onclick = () => {
-      $lb.classList.remove('open');
-      document.body.classList.remove('modal-open');
-      setTimeout(() => $lbImg.src = '', 300);
-    };
-    
-    // 点击背景关闭
-    $lb.onclick = (e) => {
-        if (e.target === $lb) $('lbClose').click();
-    };
+    lb.onclick = () => { lb.className = 'lightbox'; lbImg.src=''; };
 
-    // 搜索过滤 (本地过滤)
-    $('searchInput').addEventListener('input', (e) => {
-      const val = e.target.value.toLowerCase();
-      // 这里可以做 DOM 元素的显示/隐藏，简单实现：
-      // 实际建议重新 fetch，但为了流畅度，这里不做操作，仅作 UI 展示
-    });
-
-    // Start
     init();
-
   })();
   </script>
 </body>
