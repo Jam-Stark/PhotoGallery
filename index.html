@@ -27,28 +27,17 @@
     .brand-dot { width: 10px; height: 10px; background: var(--accent); border-radius: 50%; }
 
     /* === 筛选器 === */
-    .controls-area { position: sticky; top: 61px; z-index: 90; padding: 16px 0; background: var(--bg); }
-    .controls-inner { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; }
-    .chip { padding: 6px 16px; border-radius: 20px; font-size: 14px; background: var(--card-bg); color: #888; transition: 0.2s; cursor: pointer; white-space: nowrap; }
+    .controls-area { position: sticky; top: 61px; z-index: 90; padding: 16px 0; background: var(--bg); transition: transform 0.3s; }
+    .controls-inner { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+    .chip { padding: 8px 18px; border-radius: 20px; font-size: 14px; background: var(--card-bg); color: #888; transition: 0.2s; cursor: pointer; white-space: nowrap; font-weight: 500; }
+    .chip:hover { background: color-mix(in srgb, var(--card-bg), #fff 10%); }
     .chip.active { background: var(--fg); color: var(--bg); }
-    .search-input { margin-left: auto; background: var(--card-bg); border: none; border-radius: 8px; padding: 6px 12px; color: var(--fg); outline: none; }
+    .search-input { margin-left: auto; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 8px 12px; color: var(--fg); outline: none; width: 140px; transition: width 0.3s; }
+    .search-input:focus { width: 200px; border-color: var(--accent); }
 
-    /* === 核心：JS 驱动的瀑布流布局 === */
-    .grid { 
-      display: flex; 
-      align-items: flex-start; /* 关键：顶部对齐 */
-      gap: 20px; 
-      padding-bottom: 100px;
-    }
-    
-    /* 每一列是一个垂直栈 */
-    .grid-col {
-      flex: 1; 
-      display: flex; 
-      flex-direction: column; 
-      gap: 20px; 
-      min-width: 0; /* 防止 Flex 子项溢出 */
-    }
+    /* === 核心布局 === */
+    .grid { display: flex; align-items: flex-start; gap: 20px; padding-bottom: 100px; }
+    .grid-col { flex: 1; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 
     /* 卡片样式 */
     .card {
@@ -57,16 +46,34 @@
       cursor: zoom-in;
     }
     .card.reveal { transform: translateY(0); opacity: 1; }
-    .thumb { display: block; width: 100%; height: auto; object-fit: cover; }
-    .meta { position: absolute; bottom: 0; left: 0; right: 0; padding: 30px 10px 10px; background: linear-gradient(to top, rgba(0,0,0,0.7), transparent); color: #fff; font-size: 12px; opacity: 0; transition: 0.3s; pointer-events: none; }
+    
+    /* 图片样式修复 */
+    .thumb { 
+      display: block; width: 100%; height: auto; object-fit: cover; 
+      background: var(--card-bg); /* 加载前背景色 */
+      min-height: 100px; /* 防止高度塌陷 */
+    }
+    
+    /* 渐变信息层 */
+    .meta { 
+      position: absolute; bottom: 0; left: 0; right: 0; 
+      padding: 40px 12px 12px; 
+      background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); 
+      color: #fff; font-size: 12px; font-weight: 500;
+      opacity: 0; transition: 0.3s; pointer-events: none; 
+    }
     .card:hover .meta { opacity: 1; }
 
     /* Lightbox */
-    .lightbox { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
-    .lightbox.open { display: flex; }
-    .lb-img { max-width: 95vw; max-height: 95vh; border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    .lightbox { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s; }
+    .lightbox.open { display: flex; opacity: 1; }
+    .lb-img { max-width: 96vw; max-height: 94vh; border-radius: 4px; box-shadow: 0 20px 80px rgba(0,0,0,0.5); transform: scale(0.95); transition: transform 0.3s; }
+    .lightbox.open .lb-img { transform: scale(1); }
     
-    .loading { text-align: center; padding: 40px; color: #888; display: none; }
+    .loading { text-align: center; padding: 40px; color: #888; display: none; font-size: 14px; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: var(--fg); animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
   </style>
 </head>
 <body>
@@ -86,7 +93,10 @@
     </div>
 
     <div id="grid" class="grid"></div>
-    <div id="msg" class="loading">Loading...</div>
+    
+    <div id="msg" class="loading">
+      <span class="spinner"></span><span>Loading...</span>
+    </div>
   </div>
 
   <div id="lightbox" class="lightbox">
@@ -95,7 +105,9 @@
 
   <script>
   (function(){
+    // === CONFIG ===
     const CONFIG = {
+      // ⚠️ 确保你的 API Key 正确
       GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com",
       ROOT_FOLDER_NAME: "Photo for Gallery",
       ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",
@@ -106,7 +118,7 @@
       albums: [],
       currentAlbum: null,
       loading: false,
-      columns: [], // 存储列的 DOM 引用
+      columns: [], 
       colCount: 0
     };
 
@@ -117,21 +129,19 @@
       const grid = $('grid');
       const w = window.innerWidth;
       
-      // 根据屏幕宽度决定列数
+      // 响应式列数
       let newColCount = 1;
       if (w >= 600) newColCount = 2;
       if (w >= 900) newColCount = 3;
       if (w >= 1400) newColCount = 4;
       if (w >= 1800) newColCount = 5;
 
-      // 如果列数没变，就不重置
       if (newColCount === state.colCount && grid.children.length > 0) return;
 
       state.colCount = newColCount;
       state.columns = [];
       grid.innerHTML = '';
 
-      // 创建 N 个列容器
       for (let i = 0; i < newColCount; i++) {
         const col = document.createElement('div');
         col.className = 'grid-col';
@@ -147,18 +157,17 @@
       params.supportsAllDrives = 'true';
       params.includeItemsFromAllDrives = 'true';
       Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
+      
       const res = await fetch(url);
+      if (!res.ok) throw new Error("API Error");
       return res.json();
     }
 
     async function init() {
       setupGrid();
       window.addEventListener('resize', () => {
-        // 简单处理：窗口大小剧烈变化时刷新页面重新布局，或者复杂的重排逻辑
-        // 这里为了体验，仅当从手机变电脑时可能需要刷新。
-        // 为保证响应式，我们可以在 resize 时重新 setupGrid 并重新 render 现有 photos。
-        // 简化版：暂不自动重排已加载图片，只调整新加载的。
-        // 完美版建议：setupGrid() -> 清空 -> 重新把 state.allPhotos 塞进去。
+         // 可选：resize 时刷新布局（此处略过以保持简单）
+         setupGrid();
       });
 
       try {
@@ -167,7 +176,10 @@
         state.albums = data.files.map(f => ({ id: f.id, name: f.name }));
         renderTabs();
         selectAlbum('__all__');
-      } catch(e) { console.error(e); }
+      } catch(e) { 
+        $('msg').innerHTML = "无法连接 Google Drive，请检查网络";
+        $('msg').style.display = 'block';
+      }
     }
 
     function renderTabs() {
@@ -192,21 +204,19 @@
       
       document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.id === id));
       
-      // 切换相册时，必须清空所有列
-      setupGrid(); // 强制重置列
+      // 重置布局
+      setupGrid(); 
       state.columns.forEach(c => c.innerHTML = ''); 
       
       $('msg').style.display = 'block';
-      $('msg').textContent = 'Loading...';
 
       try {
         let files = [];
         if (id === '__all__') {
-            const tasks = [fetchPhotos(CONFIG.ROOT_FOLDER_ID, 40)];
-            state.albums.forEach(a => tasks.push(fetchPhotos(a.id, 40)));
+            const tasks = [fetchPhotos(CONFIG.ROOT_FOLDER_ID, 30)];
+            state.albums.forEach(a => tasks.push(fetchPhotos(a.id, 30)));
             const res = await Promise.all(tasks);
             const all = res.flat();
-            // 去重
             const seen = new Set();
             files = all.filter(f => !seen.has(f.id) && seen.add(f.id));
         } else {
@@ -217,7 +227,10 @@
         renderPhotos(files);
 
       } catch(e) { console.error(e); }
-      finally { state.loading = false; $('msg').style.display = 'none'; }
+      finally { 
+        state.loading = false; 
+        $('msg').style.display = 'none'; 
+      }
     }
 
     async function fetchPhotos(pid, size) {
@@ -228,50 +241,48 @@
       return res.files || [];
     }
 
-    // === 核心渲染：寻找最短列插入 ===
+    // === 渲染核心 ===
     function renderPhotos(files) {
-      if(!files.length) { $('msg').textContent = 'No Photos'; $('msg').style.display='block'; return; }
+      if(!files.length) { 
+        $('msg').innerHTML = '暂无照片'; 
+        $('msg').style.display='block'; 
+        return; 
+      }
       
       files.forEach((meta, i) => {
         const card = document.createElement('div');
         card.className = 'card';
         
-        // 计算宽高比，防止图片加载前布局塌陷
+        // 宽高比占位
         const w = meta.imageMediaMetadata?.width || 1;
         const h = meta.imageMediaMetadata?.height || 1;
-        const aspectRatio = h / w; // 高宽比
+        const aspectRatio = h / w; 
         
         const date = meta.createdTime ? new Date(meta.createdTime).toLocaleDateString() : '';
-
-        // 缩略图优化：列表页用 s500
         const src = meta.thumbnailLink ? meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s500') : '';
 
+        // 🟢 关键修复点：
+        // 1. referrerpolicy="no-referrer" 防止 403 Forbidden
+        // 2. onerror="this.closest('.card').remove()" 如果图片真的挂了，直接移除该卡片，不留空白
         card.innerHTML = `
-           <img class="thumb" src="${src}" loading="lazy" style="aspect-ratio: ${1/aspectRatio}" />
+           <img class="thumb" 
+                src="${src}" 
+                loading="lazy" 
+                referrerpolicy="no-referrer"
+                style="aspect-ratio: ${1/aspectRatio}" 
+                onerror="this.parentElement.style.display='none'" 
+           />
            <div class="meta">${date}</div>
         `;
+        
         card.onclick = () => openLightbox(meta);
 
-        // --- 瀑布流算法 ---
-        // 找到当前高度最小的那一列
-        // 注意：因为图片是异步加载的，offsetHeight 此时可能不准。
-        // 但我们利用了 style="aspect-ratio"，浏览器能预知高度，所以大致是准的。
-        // 或者简单的轮询策略 (i % colCount) 也能保证水平填满。
-        
-        // 策略A: 简单轮询 (Index % N)。保证水平方向一定是满的，最符合你想要“铺满”的需求。
-        // 策略B: 找最短列。Masonry 标准做法。
-
-        // 这里用策略 B (Find Shortest) 会更自然，但如果图片没加载出来高度为0，就会全堆在第一列。
-        // 既然我们有 aspectRatio，我们可以维护一个虚拟高度数组。
-        
-        // 简单起见，且为了修复你的“后面不行了”的问题，直接用【策略A：轮询插入】最稳。
-        // 它强制：第1张->第1列，第2张->第2列，第3张->第3列，第4张->第4列... 
-        
+        // 轮询插入列 (1 -> Col 1, 2 -> Col 2...)
         const targetColIndex = i % state.colCount;
         state.columns[targetColIndex].appendChild(card);
 
         // 动画
-        setTimeout(() => card.classList.add('reveal'), i * 30); 
+        setTimeout(() => card.classList.add('reveal'), Math.min(i, 20) * 40); 
       });
     }
 
@@ -284,7 +295,9 @@
         if(meta.thumbnailLink) src = meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s2048');
         lbImg.src = src;
     }
-    lb.onclick = () => { lb.className = 'lightbox'; lbImg.src=''; };
+    lb.onclick = (e) => { 
+      if (e.target !== lbImg) { lb.className = 'lightbox'; lbImg.src=''; }
+    };
 
     init();
   })();
