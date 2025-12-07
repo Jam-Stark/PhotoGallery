@@ -3,522 +3,478 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Baoquan's Photo Gallery</title>
-  <meta name="description" content="Baoquan Cao的摄影作品集，支持通过 Google Drive 自动抓取相册并在 GitHub Pages 上部署。" />
+  <title>Baoquan's Gallery</title>
+  <meta name="description" content="Baoquan Cao的摄影作品集，支持通过 Google Drive 自动抓取相册。" />
   <meta name="color-scheme" content="light dark" />
   <style>
+    /* === Apple Design System Variables === */
     :root {
       --bg: #ffffff;
-      --fg: #0a0a0a;
-      --muted: #6b7280;
-      --card: #f6f7f9;
+      --bg-translucent: rgba(255, 255, 255, 0.72);
+      --fg: #1d1d1f;
+      --muted: #86868b;
+      --card-bg: #f5f5f7;
       --accent: #0071e3;
-      --ring: rgba(0,113,227,.25);
-      --shadow: 0 10px 30px rgba(0,0,0,.08);
+      --accent-hover: #0077ed;
+      --border: rgba(0, 0, 0, 0.08);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.12);
+      --radius-sm: 12px;
+      --radius-md: 18px;
+      --radius-lg: 24px;
+      --ease-spring: cubic-bezier(0.25, 0.8, 0.25, 1); /* iOS Spring Physics */
+      --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
     }
+
     @media (prefers-color-scheme: dark) {
-      :root { --bg:#0b0c0e; --fg:#f5f5f7; --muted:#a1a1aa; --card:#141518; --accent:#0a84ff; --ring:rgba(10,132,255,.25); --shadow:0 10px 30px rgba(0,0,0,.35); }
+      :root {
+        --bg: #000000;
+        --bg-translucent: rgba(28, 28, 30, 0.72);
+        --fg: #f5f5f7;
+        --muted: #86868b;
+        --card-bg: #1c1c1e;
+        --accent: #2997ff;
+        --accent-hover: #409cff;
+        --border: rgba(255, 255, 255, 0.12);
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+        --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.4);
+      }
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font:16px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",Arial,Helvetica,sans-serif;
-      background:var(--bg); color:var(--fg);
-      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+
+    /* === Reset & Base === */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
     }
-    body.modal-open{overflow:hidden}
-    a{color:inherit;text-decoration:none}
-    .container{max-width:1200px;margin:0 auto;padding:20px}
-
-    /* 顶部导航 */
-    header.nav{position:sticky;top:0;z-index:40;backdrop-filter:saturate(180%) blur(16px);background:color-mix(in oklab,var(--bg) 85%,transparent);border-bottom:1px solid color-mix(in oklab,var(--fg) 8%,transparent)}
-    .nav-inner{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 20px}
-    .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
-    .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 6px var(--ring)}
-    .actions{display:flex;gap:8px;align-items:center}
-    .btn{appearance:none;border:1px solid color-mix(in oklab,var(--fg) 10%,transparent);color:var(--fg);background:linear-gradient(180deg,color-mix(in oklab,var(--card) 90%,transparent),color-mix(in oklab,var(--card) 100%,transparent));padding:10px 14px;border-radius:12px;font-weight:600;letter-spacing:.2px;cursor:pointer;box-shadow:var(--shadow);transition:transform .15s ease,opacity .2s ease,border-color .2s ease}
-    .btn:hover{transform:translateY(-1px)}
-    .btn:active{transform:translateY(0)}
-    .btn.primary{background:linear-gradient(180deg,color-mix(in oklab,var(--accent) 90%,transparent),var(--accent));color:#fff;border-color:transparent}
-    .btn.ghost{background:transparent;box-shadow:none}
-
-    /* Hero */
-    .hero{padding:50px 20px 10px;text-align:center}
-    .hero h1{font-size:clamp(28px,6vw,52px);margin:0 0 10px;letter-spacing:.3px}
-    .hero p{margin:0;color:var(--muted);font-size:clamp(14px,2.2vw,18px)}
-
-    /* 相册分组 */
-    .albums-bar{position:relative;margin-top:24px}
-    .albums-scroll{display:flex;gap:8px;overflow:auto;padding:6px;scrollbar-width:thin}
-    .chip{white-space:nowrap;border:1px solid color-mix(in oklab,var(--fg) 10%,transparent);background:var(--card);padding:8px 12px;border-radius:999px;font-weight:600;cursor:pointer;user-select:none;transition:background .2s ease,border-color .2s ease,transform .15s ease}
-    .chip:hover{transform:translateY(-1px)}
-    .chip.active{background:color-mix(in oklab,var(--accent) 12%,var(--card));border-color:color-mix(in oklab,var(--accent) 40%,transparent)}
-
-    /* 搜索与工具条 */
-    .toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-top:18px}
-    .search{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:12px;border:1px solid color-mix(in oklab,var(--fg) 10%,transparent);padding:10px 12px}
-    .search input{flex:1;font:inherit;background:transparent;border:0;outline:none;color:var(--fg)}
-
-    /* —— Masonry 瀑布流 —— */
-    .grid{column-width:220px;column-gap:16px;margin-top:20px}
-    .card{
-      display:inline-block; width:100%; margin:0 0 16px; position:relative;
-      overflow:hidden; border-radius:18px; background:var(--card);
-      border:1px solid color-mix(in oklab,var(--fg) 10%,transparent); box-shadow:var(--shadow);
-      transition:transform .15s ease, box-shadow .2s ease, background .2s ease;
+    body.modal-open { overflow: hidden; padding-right: 15px; /* Prevent layout shift */ }
+    
+    a { color: inherit; text-decoration: none; transition: opacity 0.2s; }
+    button { font: inherit; color: inherit; border: none; background: none; padding: 0; cursor: pointer; outline: none; }
+    
+    .container { max-width: 1400px; margin: 0 auto; padding: 0 24px; width: 100%; }
+    
+    /* === Animations === */
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUpFade { 
+      from { opacity: 0; transform: translateY(30px) scale(0.98); } 
+      to { opacity: 1; transform: translateY(0) scale(1); } 
     }
-    .card:hover{transform:translateY(-1px);box-shadow:0 16px 40px rgba(0,0,0,.28);background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,0))}
-    .thumb-wrap{position:relative;width:100%;border-radius:16px;overflow:hidden;background:repeating-linear-gradient(135deg,color-mix(in oklab,var(--fg) 4%,transparent),color-mix(in oklab,var(--fg) 4%,transparent) 10px,transparent 10px,transparent 20px)}
-    .thumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;opacity:0;transform:scale(1.02);transition:opacity .35s ease,transform .35s ease}
-    .card.loaded .thumb{opacity:1;transform:none}
+    @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
 
-    /* 日期显示：二选一 */
-    .date-overlay{
-      position:absolute;left:14px;bottom:14px;padding:6px 10px;font-size:12px;line-height:1;color:#fff;border-radius:10px;
-      background:rgba(0,0,0,.45);backdrop-filter:saturate(160%) blur(10px);-webkit-backdrop-filter:saturate(160%) blur(10px);
-      letter-spacing:.2px;user-select:none
+    /* === Navigation === */
+    header.nav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--bg-translucent);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.3s;
     }
-    .date-caption{margin-top:8px;font-size:12px;line-height:1.2;color:var(--muted);text-align:left;padding-left:2px;user-select:none}
-    [data-date-style="overlay"] .date-overlay{display:inline-flex}
-    [data-date-style="overlay"] .date-caption{display:none}
-    [data-date-style="below"] .date-overlay{display:none}
-    [data-date-style="below"] .date-caption{display:block}
-
-    /* Lightbox */
-    .lightbox{position:fixed;inset:0;display:none;place-items:center;background:color-mix(in oklab,var(--bg) 20%,rgba(0,0,0,.6));backdrop-filter:blur(10px);z-index:50}
-    .lightbox.open{display:grid}
-    .lb-inner{position:relative;width:min(92vw,1400px);height:min(86vh,900px);border-radius:16px;overflow:hidden;background:#000;box-shadow:var(--shadow)}
-    .lb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
-    .lb-top{position:absolute;inset:0 0 auto 0;display:flex;justify-content:space-between;align-items:center;padding:10px;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);color:#fff;font-weight:600;z-index:3;pointer-events:auto}
-    .lb-actions{display:flex;gap:8px}
-    .icon-btn{
-      display:inline-flex;align-items:center;gap:6px;
-      min-width:36px;height:36px;padding:0 10px;border-radius:10px;
-      border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;cursor:pointer
+    .nav-inner { height: 64px; display: flex; align-items: center; justify-content: space-between; }
+    
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 19px; letter-spacing: -0.01em; }
+    .brand-icon { 
+      width: 24px; height: 24px; border-radius: 6px; 
+      background: linear-gradient(135deg, var(--accent), #a259ff); 
+      display: grid; place-items: center; color: white;
     }
-    .icon-btn:hover{background:rgba(255,255,255,.15)}
-    .lb-nav{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:2}
-    .lb-hit{pointer-events:auto;display:grid;place-items:center;width:22%;height:100%}
+    
+    .actions { display: flex; align-items: center; gap: 12px; }
+    
+    /* iOS Style Buttons */
+    .btn {
+      padding: 8px 16px; border-radius: 999px; font-weight: 500; font-size: 14px;
+      transition: all 0.2s var(--ease-spring);
+      background: var(--card-bg); color: var(--fg);
+      border: 1px solid var(--border);
+    }
+    .btn:hover { background: color-mix(in srgb, var(--card-bg), var(--fg) 5%); transform: translateY(-1px); }
+    .btn:active { transform: scale(0.96); }
+    .btn.primary { background: var(--accent); color: #fff; border: 1px solid transparent; box-shadow: 0 2px 10px color-mix(in srgb, var(--accent), transparent 60%); }
+    .btn.primary:hover { background: var(--accent-hover); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent), transparent 50%); }
 
-    /* 状态/提示 */
-    .empty{text-align:center;color:var(--muted);padding:60px 10px}
-    .note{font-size:13px;color:var(--muted)}
-    .status{display:none;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:var(--card);border:1px solid color-mix(in oklab,var(--fg) 10%,transparent)}
-    .status.show{display:inline-flex}
-    .dot-anim{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 6px var(--ring);animation:pulse 1.6s infinite}
-    @keyframes pulse{0%{box-shadow:0 0 0 0 var(--ring)}70%{box-shadow:0 0 0 10px rgba(0,0,0,0)}100%{box-shadow:0 0 0 0 rgba(0,0,0,0)}}
+    /* === Hero Section === */
+    .hero { padding: 80px 0 40px; text-align: center; animation: slideUpFade 0.8s var(--ease-out) forwards; }
+    .hero h1 { 
+      font-size: clamp(32px, 5vw, 56px); font-weight: 700; margin: 0 0 16px; 
+      letter-spacing: -0.02em; background: linear-gradient(135deg, var(--fg) 30%, var(--muted)); 
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero p { font-size: clamp(16px, 2vw, 21px); color: var(--muted); max-width: 600px; margin: 0 auto; line-height: 1.4; }
 
-    footer{margin:40px 0 20px;text-align:center;color:var(--muted)}
+    /* === Controls (Chips & Search) === */
+    .controls-area { position: sticky; top: 65px; z-index: 90; padding: 16px 0; margin-bottom: 20px; transition: transform 0.3s; pointer-events: none; }
+    .controls-area.scrolled { transform: translateY(-10px); }
+    .controls-inner { 
+      pointer-events: auto; background: var(--bg-translucent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-radius: var(--radius-lg); border: 1px solid var(--border); 
+      padding: 10px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+      box-shadow: var(--shadow-sm); max-width: 900px; margin: 0 auto;
+    }
+
+    /* Scrollable Chips */
+    .albums-wrapper { flex: 1; overflow: hidden; position: relative; mask-image: linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
+    .albums-scroll { 
+      display: flex; gap: 8px; overflow-x: auto; padding: 4px 20px; 
+      scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth;
+    }
+    .albums-scroll::-webkit-scrollbar { display: none; }
+    
+    .chip {
+      white-space: nowrap; padding: 8px 16px; border-radius: 999px; 
+      font-size: 14px; font-weight: 500; color: var(--muted);
+      background: transparent; transition: all 0.3s var(--ease-spring);
+      border: 1px solid transparent;
+    }
+    .chip:hover { color: var(--fg); background: rgba(125,125,125, 0.08); }
+    .chip.active { background: var(--fg); color: var(--bg); box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+
+    /* Search Input */
+    .search-box { 
+      display: flex; align-items: center; gap: 8px; background: rgba(125,125,125, 0.08); 
+      padding: 8px 12px; border-radius: 999px; width: 200px; transition: width 0.3s var(--ease-spring);
+    }
+    .search-box:focus-within { width: 260px; background: var(--bg); box-shadow: 0 0 0 2px var(--accent); }
+    .search-box input { border: none; background: transparent; outline: none; font-size: 14px; color: var(--fg); width: 100%; }
+    .search-box svg { color: var(--muted); width: 16px; height: 16px; }
+
+    /* === Masonry Grid === */
+    .grid { 
+      column-width: 280px; column-gap: 24px; padding-bottom: 60px;
+      /* Prevent layout shift during loading */
+      min-height: 50vh;
+    }
+    
+    .card {
+      break-inside: avoid; margin-bottom: 24px; position: relative;
+      border-radius: var(--radius-md); overflow: hidden;
+      background: var(--card-bg);
+      box-shadow: var(--shadow-sm);
+      /* Stagger Animation Initial State */
+      opacity: 0; transform: translateY(40px) scale(0.96);
+      transition: transform 0.4s var(--ease-spring), box-shadow 0.4s var(--ease-spring), opacity 0.6s var(--ease-out);
+      cursor: zoom-in;
+    }
+    
+    /* Reveal Animation Class */
+    .card.reveal { opacity: 1; transform: translateY(0) scale(1); }
+
+    .card:hover { transform: translateY(-4px) scale(1.005); box-shadow: var(--shadow-lg); z-index: 2; }
+    
+    .thumb-wrap { position: relative; width: 100%; background: var(--card-bg); overflow: hidden; }
+    /* Skeleton Loading Effect */
+    .thumb-wrap::before {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      opacity: 0.5; animation: pulse 2s infinite; pointer-events: none; z-index: 1;
+    }
+    
+    .thumb { 
+      width: 100%; height: 100%; display: block; object-fit: cover; 
+      transition: transform 0.7s var(--ease-out), opacity 0.3s;
+      opacity: 0; /* Fade in when loaded */
+    }
+    .card.loaded .thumb { opacity: 1; }
+    .card.loaded .thumb-wrap::before { display: none; }
+    .card:hover .thumb { transform: scale(1.06); }
+
+    /* Overlay Info */
+    .card-info {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 20px 16px 16px;
+      background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+      color: white; opacity: 0; transform: translateY(10px);
+      transition: all 0.3s var(--ease-spring);
+    }
+    .card:hover .card-info { opacity: 1; transform: translateY(0); }
+    .card-date { font-size: 13px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+
+    /* === Infinite Scroll Sentinel === */
+    #sentinel { height: 60px; margin-top: 20px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
+    #sentinel.visible { opacity: 1; }
+    .spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* === Lightbox === */
+    .lightbox {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      display: none; opacity: 0; transition: opacity 0.3s var(--ease-out);
+    }
+    .lightbox.open { display: flex; opacity: 1; }
+    
+    .lb-container { 
+      width: 100%; height: 100%; display: grid; place-items: center; position: relative;
+      animation: slideUpFade 0.4s var(--ease-spring) forwards;
+    }
+    
+    .lb-img {
+      max-width: 95vw; max-height: 92vh; 
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+      border-radius: 4px;
+      transform: scale(0.95); opacity: 0;
+      transition: transform 0.4s var(--ease-spring), opacity 0.4s;
+    }
+    .lightbox.loaded .lb-img { transform: scale(1); opacity: 1; }
+
+    /* Lightbox Controls */
+    .lb-bar {
+      position: absolute; top: 0; left: 0; right: 0; padding: 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      color: white; z-index: 10;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .lightbox:hover .lb-bar { opacity: 1; }
+    
+    .lb-btn {
+      width: 44px; height: 44px; border-radius: 50%; 
+      background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: center;
+      color: white; transition: background 0.2s, transform 0.2s;
+    }
+    .lb-btn:hover { background: rgba(255,255,255,0.25); transform: scale(1.1); }
+    .lb-btn:active { transform: scale(0.9); }
+    .lb-nav-area { position: absolute; inset: 0; display: flex; z-index: 5; pointer-events: none; }
+    .lb-nav-hit { width: 15%; height: 100%; pointer-events: auto; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; color: white; font-size: 40px; }
+    .lb-nav-hit:hover { opacity: 1; background: linear-gradient(90deg, rgba(0,0,0,0.2), transparent); }
+    .lb-nav-hit.next { margin-left: auto; background: linear-gradient(-90deg, rgba(0,0,0,0.2), transparent); }
+
+    /* === State Messages === */
+    .empty-state { text-align: center; padding: 80px 20px; color: var(--muted); display: none; }
+    .status-badge { 
+      font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px; 
+      background: var(--card-bg); border: 1px solid var(--border);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,113,227,0.2); }
+    .dot.anim { animation: pulse 1s infinite; }
+
+    footer { text-align: center; padding: 40px 20px 60px; color: var(--muted); font-size: 13px; }
   </style>
 </head>
 <body>
-  <!-- 顶部导航 -->
+
   <header class="nav">
     <div class="nav-inner container">
-      <div class="brand"><div class="dot" aria-hidden="true"></div><span>Baoquan's Photo Gallery</span></div>
+      <div class="brand">
+        <div class="brand-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8 8 8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <span>Gallery</span>
+      </div>
       <div class="actions">
-        <span id="authStatus" class="status"><span class="dot-anim"></span><span>载入中…</span></span>
-        <button id="btnSignIn" class="btn primary" style="display:none">连接 Google Drive</button>
-        <button id="btnSignOut" class="btn ghost" style="display:none">断开</button>
+        <div id="authStatus" class="status-badge" style="display:none">
+          <span class="dot anim"></span><span>Syncing</span>
+        </div>
+        <button id="btnSignIn" class="btn primary" style="display:none">Connect Drive</button>
       </div>
     </div>
   </header>
 
-  <!-- 头部文案 -->
   <section class="hero container">
-    <h1>摄影作品集</h1>
-    <p class="note" style="margin-top:8px">公开相册 · 自动抓取。若图片未显示，请：<strong>点击右上角尝试连接</strong>。</p>
+    <h1>Moments in Light</h1>
+    <p>A collection of memories captured in time.<br>Stored in Drive, curated for you.</p>
   </section>
 
-  <!-- 相册分组 + 搜索 -->
   <section class="container">
-    <div class="albums-bar"><div id="albums" class="albums-scroll" role="tablist" aria-label="相册分组"></div></div>
-    <div class="toolbar">
-      <div class="search">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10.5" cy="10.5" r="7" stroke="currentColor" stroke-width="1.6"/></svg>
-        <input id="searchInput" type="search" placeholder="搜索关键字…" autocomplete="off" />
-      </div>
-      <button id="btnReload" class="btn" title="重新从 Drive 拉取">刷新</button>
-    </div>
-
-    <div id="gallery" class="grid" aria-live="polite" aria-busy="false"></div>
-    <div id="emptyState" class="empty" style="display:none">没有找到照片。</div>
-  </section>
-
-  <!-- Lightbox 预览 -->
-  <div id="lightbox" class="lightbox" aria-modal="true" role="dialog" aria-label="大图预览">
-    <div class="lb-inner">
-      <div class="lb-top">
-        <div id="lbTitle">&nbsp;</div>
-        <div class="lb-actions">
-          <!-- 点赞：前端状态切换 -->
-          <button id="btnLike" class="icon-btn" title="点赞" aria-label="点赞" aria-pressed="false" type="button">
-            <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.8 13.1c0 4.9-8.8 8.9-8.8 8.9S3.2 18 3.2 13.1c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3z"/></svg>
-          </button>
-          <button id="btnClose" class="icon-btn" title="关闭" aria-label="关闭" type="button">
-            <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M6 6l12 12M6 18L18 6"/></svg>
-          </button>
+    <div class="controls-area">
+      <div class="controls-inner">
+        <div class="albums-wrapper">
+          <div id="albums" class="albums-scroll" role="tablist">
+            </div>
+        </div>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input id="searchInput" type="text" placeholder="Search..." autocomplete="off">
         </div>
       </div>
-      <img id="lbImg" class="lb-img" alt="预览图片" />
-      <div class="lb-nav"><div id="hitPrev" class="lb-hit" aria-label="上一张"></div><div id="hitNext" class="lb-hit" aria-label="下一张"></div></div>
+    </div>
+
+    <div id="gallery" class="grid"></div>
+    
+    <div id="sentinel">
+      <div class="spinner"></div>
+    </div>
+
+    <div id="emptyState" class="empty-state">No photos found.</div>
+  </section>
+
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true">
+    <div class="lb-bar">
+      <button id="btnClose" class="lb-btn" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+      <span id="lbTitle" style="font-weight:600; font-size:15px; letter-spacing:0.5px"></span>
+      <button id="btnLike" class="lb-btn" aria-label="Like">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+      </button>
+    </div>
+    <div class="lb-container">
+      <img id="lbImg" class="lb-img" alt="" />
+    </div>
+    <div class="lb-nav-area">
+      <div id="hitPrev" class="lb-nav-hit">‹</div>
+      <div id="hitNext" class="lb-nav-hit next">›</div>
     </div>
   </div>
 
-  <footer class="container"><div class="note">Powered by Google Drive API · Deploy on GitHub Pages · © <span id="year"></span></div></footer>
+  <footer>
+    <p>© <span id="year"></span> Baoquan Cao · Powered by Google Drive API</p>
+  </footer>
 
   <script>
   (function(){
-    // 防止重复执行（多次引入脚本时不会报“已声明”错误，也不会重复绑定）
-    if (window.__PG_BOUND__) { console.warn('Gallery already initialized.'); return; }
-    window.__PG_BOUND__ = true;
-
-    /**
-     * 配置：公开文件夹 + API Key 模式
-     */
+    // === 配置 ===
     const CONFIG = {
+      // ⚠️ 注意：保持你的 API Key 配置
       GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com",
       ROOT_FOLDER_NAME: "Photo for Gallery",
       ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",
-      DRIVE_SCOPE: "https://www.googleapis.com/auth/drive.readonly",
       API_KEY: "AIzaSyDzWCVEye-Rj3wCBdRIi9YAHq5i7UwHN5g",
-      PAGE_SIZE: 50,
+      PAGE_SIZE: 30 // 稍微减小单次请求量，依靠无限滚动
     };
 
-    // 日期展示方式：'overlay' 或 'below'
-    const DATE_STYLE = 'overlay';
-    document.documentElement.setAttribute('data-date-style', DATE_STYLE);
+    // === 状态 ===
+    let state = {
+      rootId: null,
+      albums: [],
+      currentAlbum: null,
+      photos: [], // 当前展示的图片列表
+      nextPageToken: null,
+      loading: false
+    };
 
-    // === 全局状态 ===
-    const isApiKeyMode = !!CONFIG.API_KEY;
-    let rootFolderId = null;
-    let albumsCache = [];     // { id, name }
-    let currentAlbumId = null;
-    let photosCache = [];     // 当前相册
-    let nextPageToken = null;
+    // === DOM ===
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      albums: $('albums'),
+      gallery: $('gallery'),
+      empty: $('emptyState'),
+      sentinel: $('sentinel'),
+      authStatus: $('authStatus'),
+      search: $('searchInput'),
+      lb: $('lightbox'),
+      lbImg: $('lbImg'),
+      lbTitle: $('lbTitle')
+    };
 
-    // Dom refs
-    const el = (id) => document.getElementById(id);
-    const $albums = el('albums');
-    const $gallery = el('gallery');
-    const $empty = el('emptyState');
-    const $btnSignIn = el('btnSignIn');
-    const $btnSignOut = el('btnSignOut');
-    const $authStatus = el('authStatus');
-    const $btnReload = el('btnReload');
-    const $search = el('searchInput');
-    const $lb = el('lightbox');
-    const $lbImg = el('lbImg');
-    const $lbTitle = el('lbTitle');
-    const $hitPrev = el('hitPrev');
-    const $hitNext = el('hitNext');
-    const $btnClose = el('btnClose');
-    const $btnLike = el('btnLike');
+    $('year').textContent = new Date().getFullYear();
 
-    el('year').textContent = new Date().getFullYear();
-    if (isApiKeyMode) { $btnSignIn.style.display = 'none'; $btnSignOut.style.display = 'none'; }
-
-    // === Drive API ===
+    // === Drive API (Core) ===
     const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
-    const viewUrl = (id, t='') => `https://drive.google.com/uc?export=view&id=${id}${t ? `&t=${encodeURIComponent(t)}` : ''}`;
-    const downloadUrl = (id, t='') => `https://drive.google.com/uc?export=download&id=${id}${t ? `&t=${encodeURIComponent(t)}` : ''}`;
+    
+    // 关键优化：根据场景选择 URL
+    const getUrl = (id, type) => {
+      if (type === 'view') return `https://drive.google.com/uc?export=view&id=${id}`;
+      if (type === 'download') return `https://drive.google.com/uc?export=download&id=${id}`;
+      return '';
+    };
 
-    async function driveList(q, { fields, orderBy, pageToken, pageSize } = {}) {
-      const params = new URLSearchParams({
-        q,
-        fields: fields || 'nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime, thumbnailLink, webContentLink, imageMediaMetadata)',
-        spaces: 'drive',
-        includeItemsFromAllDrives: 'true', supportsAllDrives: 'true',
-        pageSize: String(pageSize || CONFIG.PAGE_SIZE),
-        key: CONFIG.API_KEY,
-      });
-      if (orderBy) params.set('orderBy', orderBy);
-      if (pageToken) params.set('pageToken', pageToken);
-      const res = await fetch(`${DRIVE_BASE}/files?${params.toString()}`);
-      if (!res.ok) throw new Error(`Drive list 错误：${res.status} ${await res.text()}`);
+    async function driveFetch(endpoint, params={}) {
+      const url = new URL(`${DRIVE_BASE}/${endpoint}`);
+      params.key = CONFIG.API_KEY;
+      Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
+      
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(await res.text());
       return res.json();
     }
 
-    async function findRootFolderId() {
-      if (CONFIG.ROOT_FOLDER_ID) return CONFIG.ROOT_FOLDER_ID;
-      throw new Error('请在 CONFIG.ROOT_FOLDER_ID 填入根文件夹 ID（并确保公开）。');
+    async function listFiles(q, pageToken) {
+      return driveFetch('files', {
+        q,
+        pageToken: pageToken || '',
+        pageSize: CONFIG.PAGE_SIZE,
+        fields: 'nextPageToken, files(id, name, mimeType, createdTime, modifiedTime, thumbnailLink, imageMediaMetadata)',
+        orderBy: 'createdTime desc'
+      });
     }
 
-    async function listAlbums(parentId) {
-      const q = `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-      const data = await driveList(q, { orderBy: 'name_natural' });
-      return data.files.map(f => ({ id: f.id, name: f.name }));
-    }
-
-    async function listPhotos(parentId, { pageToken } = {}) {
-      const q = `'${parentId}' in parents and mimeType contains 'image/' and trashed = false`;
-      const data = await driveList(q, { orderBy: 'createdTime desc', pageToken });
-      return data; // { files, nextPageToken }
-    }
-
-    // === 图片加载（多源回退） ===
-    async function setImgWithFallback(imgEl, meta, { large=false } = {}) {
-      imgEl.referrerPolicy = 'no-referrer';
-      const t = meta.modifiedTime || meta.createdTime || '';
-      const candidates = [
-        viewUrl(meta.id, t),
-        downloadUrl(meta.id, t),
-      ];
-      if (meta.thumbnailLink) {
-        const size = large ? 4096 : 1600;
-        candidates.push(meta.thumbnailLink.replace(/=s\d+(\-c)?/, `=s${size}`));
-      }
-      for (const src of candidates) {
-        const ok = await trySet(imgEl, src);
-        if (ok) return true;
-      }
-      return false;
-
-      function trySet(el, src) {
-        return new Promise(resolve => {
-          const onload = () => { cleanup(); resolve(true); };
-          const onerror = () => { cleanup(); resolve(false); };
-          const cleanup = () => { el.removeEventListener('load', onload); el.removeEventListener('error', onerror); };
-          el.addEventListener('load', onload, { once:true });
-          el.addEventListener('error', onerror, { once:true });
-          el.src = src;
-        });
+    // === 逻辑控制 ===
+    async function init() {
+      els.authStatus.style.display = 'flex';
+      try {
+        // 1. 获取根目录 (如果未配置 ID 则搜索)
+        state.rootId = CONFIG.ROOT_FOLDER_ID; // 假设 ID 已知，省略搜索步骤以加快速度
+        
+        // 2. 获取相册文件夹
+        const q = `'${state.rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+        const data = await driveFetch('files', { q, orderBy: 'name_natural' });
+        
+        state.albums = data.files.map(f => ({ id: f.id, name: f.name }));
+        renderAlbums();
+        
+        // 3. 初始加载全部
+        selectAlbum('__all__');
+      } catch (e) {
+        console.error(e);
+        alert('Could not connect to Drive. Please check console.');
+      } finally {
+        els.authStatus.style.display = 'none';
       }
     }
 
-    // === UI ===
-    function renderAlbums(albums) {
-      $albums.innerHTML = '';
-      const allChip = makeChip({ id: '__all__', name: '全部' });
-      $albums.appendChild(allChip);
-      albums.forEach(a => $albums.appendChild(makeChip(a)));
-      setActiveChip('__all__');
+    function renderAlbums() {
+      els.albums.innerHTML = '';
+      const createChip = (id, name) => {
+        const btn = document.createElement('button');
+        btn.className = 'chip';
+        btn.textContent = name;
+        btn.onclick = () => selectAlbum(id);
+        if (id === '__all__') btn.classList.add('active');
+        return btn;
+      };
+      
+      els.albums.appendChild(createChip('__all__', 'All Photos'));
+      state.albums.forEach(a => els.albums.appendChild(createChip(a.id, a.name)));
     }
 
-    function makeChip(album) {
-      const chip = document.createElement('button');
-      chip.className = 'chip';
-      chip.type = 'button';
-      chip.textContent = album.name;
-      chip.setAttribute('role','tab');
-      chip.dataset.albumId = album.id;
-      chip.addEventListener('click', () => { setActiveChip(album.id); onAlbumSelected(album.id); });
-      return chip;
-    }
-    function setActiveChip(albumId){ for(const c of $albums.children){ c.classList.toggle('active', c.dataset.albumId===albumId); } }
-
-    function resetGallery(){
-      $gallery.innerHTML = '';
-      $empty.style.display = 'none';
-      $gallery.setAttribute('aria-busy','true');
-    }
-
-    // Masonry 卡片
-    function addPhotoCard(meta, index){
-      const card = document.createElement('figure');
-      card.className = 'card';
-      card.tabIndex = 0;
-      card.dataset.index = String(index);
-
-      // 占位比例（利用 EXIF 宽高，减少布局抖动）
-      const w = meta?.imageMediaMetadata?.width || 4;
-      const h = meta?.imageMediaMetadata?.height || 3;
-      const pad = (h / w) * 100;
-
-      const wrap = document.createElement('div');
-      wrap.className = 'thumb-wrap';
-      wrap.style.paddingTop = pad + '%';
-
-      const img = document.createElement('img');
-      img.className = 'thumb';
-      img.alt = 'photo';
-      img.loading = 'lazy';
-      wrap.appendChild(img);
-
-      // 日期
-      const dateStr = formatDate(meta);
-      const overlay = document.createElement('figcaption');
-      overlay.className = 'date-overlay';
-      overlay.textContent = dateStr;
-
-      const caption = document.createElement('figcaption');
-      caption.className = 'date-caption';
-      caption.textContent = dateStr;
-
-      card.appendChild(wrap);
-      card.appendChild(overlay);
-      card.appendChild(caption);
-
-      // 懒加载
-      observer.observe(card);
-
-      // 打开 Lightbox
-      card.addEventListener('click', () => openLightbox(Number(card.dataset.index)));
-      card.addEventListener('keydown', (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openLightbox(Number(card.dataset.index)); } });
-
-      $gallery.appendChild(card);
-    }
-
-    // 进入视窗时加载图片
-    const observer = new IntersectionObserver(async (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const card = entry.target; observer.unobserve(card);
-        const meta = photosCache[Number(card.dataset.index)];
-        const imgEl = card.querySelector('img.thumb');
-        try {
-          await setImgWithFallback(imgEl, meta, { large:false });
-          card.classList.add('loaded');
-        } catch (e) { console.warn('图片加载失败', e); }
+    async function selectAlbum(id) {
+      // UI 更新
+      document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', false));
+      const targetChip = Array.from(els.albums.children).find(c => c.textContent === (id==='__all__'?'All Photos':state.albums.find(a=>a.id===id).name));
+      if(targetChip) {
+        targetChip.classList.add('active');
+        targetChip.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
       }
-    }, { rootMargin: '200px 0px' });
 
-    async function onAlbumSelected(albumId){
-      currentAlbumId = (albumId === '__all__') ? null : albumId;
-      resetGallery();
-      photosCache = [];
-      nextPageToken = null;
+      // 状态重置
+      state.currentAlbum = id;
+      state.photos = [];
+      state.nextPageToken = null;
+      els.gallery.innerHTML = '';
+      els.empty.style.display = 'none';
+      
       await loadMore();
     }
 
-    async function loadMore(){
-      if (!rootFolderId) return;
-      let files = [];
-      let token = null;
+    async function loadMore() {
+      if (state.loading) return;
+      state.loading = true;
+      els.sentinel.classList.add('visible');
 
-      if (currentAlbumId) {
-        const { files: part, nextPageToken: npt } = await listPhotos(currentAlbumId);
-        files = part; token = npt;
-      } else {
-        for (const a of albumsCache) {
-          const { files: part } = await listPhotos(a.id, { pageSize: Math.ceil(CONFIG.PAGE_SIZE / Math.max(albumsCache.length,1)) });
-          files = files.concat(part);
+      try {
+        let q = "mimeType contains 'image/' and trashed = false";
+        if (state.currentAlbum !== '__all__') {
+          q += ` and '${state.currentAlbum}' in parents`;
+        } else {
+          // 在 "全部" 模式下，搜索所有子文件夹略复杂，这里简化为搜索根目录下所有文件
+          // 实际生产中最好平铺结构，或者递归搜索 (耗时)
+          // 为演示效果，这里只搜索已加载的相册里的图片
+           const parents = [state.rootId, ...state.albums.map(a=>a.id)].map(id=>`'${id}' in parents`).join(' or ');
+           q += ` and (${parents})`;
         }
-        files.sort((a,b) => new Date(b.createdTime) - new Date(a.createdTime));
-      }
 
-      nextPageToken = token;
-
-      const keyword = $search.value.trim().toLowerCase();
-      if (keyword) files = files.filter(f => (f.name || '').toLowerCase().includes(keyword));
-
-      if (!files.length && !$gallery.children.length) {
-        $gallery.setAttribute('aria-busy','false');
-        $empty.style.display = 'block';
-        return;
-      }
-
-      const startIndex = photosCache.length;
-      photosCache = photosCache.concat(files);
-      files.forEach((meta, i) => addPhotoCard(meta, startIndex + i));
-
-      $gallery.setAttribute('aria-busy','false');
-    }
-
-    // 搜索防抖
-    let searchTimer = null;
-    $search.addEventListener('input', () => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => onAlbumSelected(currentAlbumId || '__all__'), 300);
-    });
-
-    // 刷新
-    $btnReload.addEventListener('click', () => { if (!rootFolderId) return; onAlbumSelected(currentAlbumId || '__all__'); });
-
-    // 启动
-    window.addEventListener('load', () => { try { bootstrap().catch(showError); } catch(e){ console.warn(e); } });
-    async function bootstrap(){
-      $authStatus.classList.add('show');
-      try {
-        rootFolderId = await findRootFolderId();
-        albumsCache = await listAlbums(rootFolderId);
-        renderAlbums(albumsCache);
-        await onAlbumSelected('__all__');
-      } finally { $authStatus.classList.remove('show'); }
-    }
-
-    // =========================
-    // Lightbox + 点赞（前端占位）
-    // =========================
-    let lbIndex = -1;
-    const LIKE_KEY = 'pg_likes_v1';
-
-    function getLikes(){ try{ return JSON.parse(localStorage.getItem(LIKE_KEY)||'{}'); }catch{ return {}; } }
-    function setLikes(o){ localStorage.setItem(LIKE_KEY, JSON.stringify(o)); }
-    function isLiked(id){ return !!getLikes()[id]; }
-    function toggleLike(id){
-      const map = getLikes();
-      map[id] = !map[id];
-      if (!map[id]) delete map[id];
-      setLikes(map);
-      updateLikeUI(id);
-    }
-    function likeIcon(liked){
-      return liked
-        ? '♥ like'
-        : '<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.8"><path d="M20.8 13.1c0 4.9-8.8 8.9-8.8 8.9S3.2 18 3.2 13.1c0-2.9 2.3-5.3 5.2-5.3 1.7 0 3.2.9 4 2.2.8-1.3 2.3-2.2 4-2.2 2.9 0 5.2 2.4 5.2 5.3z"/></svg>';
-    }
-    function updateLikeUI(id){
-      const liked = isLiked(id);
-      $btnLike.setAttribute('aria-pressed', liked ? 'true' : 'false');
-      $btnLike.title = liked ? 'like' : '点赞';
-      $btnLike.innerHTML = likeIcon(liked);
-    }
-
-    function openLightbox(index){
-      lbIndex = index;
-      const meta = photosCache[lbIndex];
-      document.body.classList.add('modal-open');
-      $lbTitle.textContent = formatDate(meta);
-      setImgWithFallback($lbImg, meta, { large:true });
-      updateLikeUI(meta.id);
-      $btnLike.onclick = (e) => { e.stopPropagation(); toggleLike(meta.id); };
-      $lb.classList.add('open');
-    }
-    function closeLightbox(){
-      $lb.classList.remove('open');
-      document.body.classList.remove('modal-open');
-      lbIndex = -1;
-      $lbImg.removeAttribute('src'); // 释放显存
-    }
-    function nav(delta){
-      if (lbIndex < 0) return;
-      const next = lbIndex + delta;
-      if (next < 0 || next >= photosCache.length) return;
-      lbIndex = next;
-      const meta = photosCache[lbIndex];
-      $lbTitle.textContent = formatDate(meta);
-      setImgWithFallback($lbImg, meta, { large:true });
-      updateLikeUI(meta.id);
-    }
-
-    // 关闭与导航事件
-    $btnClose.addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
-    // 点击遮罩空白处关闭（只在点击到外层遮罩时触发）
-    $lb.addEventListener('click', (e) => { if (e.target === $lb) closeLightbox(); });
-    // 键盘
-    window.addEventListener('keydown', (e) => {
-      if (!$lb.classList.contains('open')) return;
-      if (e.key === 'Escape') closeLightbox();
-      if (e.key === 'ArrowLeft') nav(-1);
-      if (e.key === 'ArrowRight') nav(1);
-    });
-    // 左右大区域点击
-    $hitPrev.addEventListener('click', (e)=>{ e.stopPropagation(); nav(-1); });
-    $hitNext.addEventListener('click', (e)=>{ e.stopPropagation(); nav(1); });
-
-    // 工具
-    function formatDate(meta){
-      const ts = meta.createdTime || meta.modifiedTime || meta?.imageMediaMetadata?.time;
-      try {
-        const d = new Date(ts);
-        if (isNaN(+d)) return '';
-        return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
-      } catch { return ''; }
-    }
-    function showError(err){ console.error(err); alert((err && err.message) ? `错误：${err.message}` : '发生未知错误'); }
-  })();
-  </script>
-</body>
-</html>
+        // 搜索过滤
+        const keyword = els.search.value.toLowerCase();
+        if (keyword) q += ` and name contains '${keyword}'`;
