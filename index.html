@@ -4,72 +4,51 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Baoquan's Gallery</title>
-  <meta name="description" content="Baoquan Cao的摄影作品集，支持通过 Google Drive 自动抓取相册。" />
+  <meta name="description" content="Baoquan Cao的摄影作品集" />
   <meta name="color-scheme" content="light dark" />
   <style>
     /* === Apple Design System Variables === */
     :root {
       --bg: #ffffff;
-      --bg-translucent: rgba(255, 255, 255, 0.72);
+      --bg-translucent: rgba(255, 255, 255, 0.8);
       --fg: #1d1d1f;
       --muted: #86868b;
       --card-bg: #f5f5f7;
       --accent: #0071e3;
-      --accent-hover: #0077ed;
       --border: rgba(0, 0, 0, 0.08);
       --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
-      --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.12);
-      --radius-sm: 12px;
       --radius-md: 18px;
       --radius-lg: 24px;
-      --ease-spring: cubic-bezier(0.25, 0.8, 0.25, 1); /* iOS Spring Physics */
-      --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+      --ease-spring: cubic-bezier(0.25, 0.8, 0.25, 1);
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
         --bg: #000000;
-        --bg-translucent: rgba(28, 28, 30, 0.72);
+        --bg-translucent: rgba(28, 28, 30, 0.8);
         --fg: #f5f5f7;
         --muted: #86868b;
         --card-bg: #1c1c1e;
         --accent: #2997ff;
-        --accent-hover: #409cff;
         --border: rgba(255, 255, 255, 0.12);
         --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
-        --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.3);
-        --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.4);
       }
     }
 
     /* === Reset & Base === */
     *, *::before, *::after { box-sizing: border-box; }
-    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    html { -webkit-text-size-adjust: 100%; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
       background: var(--bg);
       color: var(--fg);
-      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      overflow-x: hidden;
     }
-    body.modal-open { overflow: hidden; padding-right: 15px; /* Prevent layout shift */ }
-    
-    a { color: inherit; text-decoration: none; transition: opacity 0.2s; }
+    body.modal-open { overflow: hidden; }
     button { font: inherit; color: inherit; border: none; background: none; padding: 0; cursor: pointer; outline: none; }
     
-    .container { max-width: 1400px; margin: 0 auto; padding: 0 24px; width: 100%; }
-    
-    /* === Animations === */
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes slideUpFade { 
-      from { opacity: 0; transform: translateY(30px) scale(0.98); } 
-      to { opacity: 1; transform: translateY(0) scale(1); } 
-    }
-    @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    .container { max-width: 1400px; margin: 0 auto; padding: 0 20px; width: 100%; }
 
     /* === Navigation === */
     header.nav {
@@ -78,554 +57,324 @@
       backdrop-filter: saturate(180%) blur(20px);
       -webkit-backdrop-filter: saturate(180%) blur(20px);
       border-bottom: 1px solid var(--border);
-      transition: background 0.3s;
     }
-    .nav-inner { height: 64px; display: flex; align-items: center; justify-content: space-between; }
-    
-    .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 19px; letter-spacing: -0.01em; }
-    .brand-icon { 
-      width: 24px; height: 24px; border-radius: 6px; 
-      background: linear-gradient(135deg, var(--accent), #a259ff); 
-      display: grid; place-items: center; color: white;
-    }
-    
-    .actions { display: flex; align-items: center; gap: 12px; }
-    
-    /* iOS Style Buttons */
-    .btn {
-      padding: 8px 16px; border-radius: 999px; font-weight: 500; font-size: 14px;
-      transition: all 0.2s var(--ease-spring);
-      background: var(--card-bg); color: var(--fg);
-      border: 1px solid var(--border);
-    }
-    .btn:hover { background: color-mix(in srgb, var(--card-bg), var(--fg) 5%); transform: translateY(-1px); }
-    .btn:active { transform: scale(0.96); }
-    .btn.primary { background: var(--accent); color: #fff; border: 1px solid transparent; box-shadow: 0 2px 10px color-mix(in srgb, var(--accent), transparent 60%); }
-    .btn.primary:hover { background: var(--accent-hover); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent), transparent 50%); }
-
-    /* === Hero Section === */
-    .hero { padding: 80px 0 40px; text-align: center; animation: slideUpFade 0.8s var(--ease-out) forwards; }
-    .hero h1 { 
-      font-size: clamp(32px, 5vw, 56px); font-weight: 700; margin: 0 0 16px; 
-      letter-spacing: -0.02em; background: linear-gradient(135deg, var(--fg) 30%, var(--muted)); 
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
-    .hero p { font-size: clamp(16px, 2vw, 21px); color: var(--muted); max-width: 600px; margin: 0 auto; line-height: 1.4; }
+    .nav-inner { height: 60px; display: flex; align-items: center; justify-content: space-between; }
+    .brand { font-weight: 600; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .brand-dot { width: 10px; height: 10px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 0 4px rgba(0,113,227,0.15); }
 
     /* === Controls (Chips & Search) === */
-    .controls-area { position: sticky; top: 65px; z-index: 90; padding: 16px 0; margin-bottom: 20px; transition: transform 0.3s; pointer-events: none; }
-    .controls-area.scrolled { transform: translateY(-10px); }
+    .controls-area { 
+      position: sticky; top: 61px; z-index: 90; padding: 12px 0; 
+      background: var(--bg); transition: transform 0.3s;
+    }
     .controls-inner { 
-      pointer-events: auto; background: var(--bg-translucent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      border-radius: var(--radius-lg); border: 1px solid var(--border); 
-      padding: 10px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
-      box-shadow: var(--shadow-sm); max-width: 900px; margin: 0 auto;
+      display: flex; gap: 12px; align-items: center; overflow-x: auto; 
+      padding-bottom: 4px; scrollbar-width: none; 
     }
-
-    /* Scrollable Chips */
-    .albums-wrapper { flex: 1; overflow: hidden; position: relative; mask-image: linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
-    .albums-scroll { 
-      display: flex; gap: 8px; overflow-x: auto; padding: 4px 20px; 
-      scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth;
-    }
-    .albums-scroll::-webkit-scrollbar { display: none; }
+    .controls-inner::-webkit-scrollbar { display: none; }
     
     .chip {
       white-space: nowrap; padding: 8px 16px; border-radius: 999px; 
       font-size: 14px; font-weight: 500; color: var(--muted);
-      background: transparent; transition: all 0.3s var(--ease-spring);
-      border: 1px solid transparent;
+      background: var(--card-bg); transition: all 0.2s;
     }
-    .chip:hover { color: var(--fg); background: rgba(125,125,125, 0.08); }
-    .chip.active { background: var(--fg); color: var(--bg); box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
-
-    /* Search Input */
-    .search-box { 
-      display: flex; align-items: center; gap: 8px; background: rgba(125,125,125, 0.08); 
-      padding: 8px 12px; border-radius: 999px; width: 200px; transition: width 0.3s var(--ease-spring);
+    .chip.active { background: var(--fg); color: var(--bg); }
+    
+    .search-wrap { margin-left: auto; position: relative; }
+    .search-input {
+      background: var(--card-bg); border: none; border-radius: 8px;
+      padding: 8px 12px; font-size: 14px; color: var(--fg); width: 140px;
+      transition: width 0.3s; outline: none;
     }
-    .search-box:focus-within { width: 260px; background: var(--bg); box-shadow: 0 0 0 2px var(--accent); }
-    .search-box input { border: none; background: transparent; outline: none; font-size: 14px; color: var(--fg); width: 100%; }
-    .search-box svg { color: var(--muted); width: 16px; height: 16px; }
+    .search-input:focus { width: 200px; box-shadow: 0 0 0 2px var(--accent); }
 
-    /* === Masonry Grid === */
+    /* === Masonry Grid (Fixed) === */
     .grid { 
-      column-width: 280px; column-gap: 24px; padding-bottom: 60px;
-      /* Prevent layout shift during loading */
-      min-height: 50vh;
+      column-width: 280px; 
+      column-gap: 20px; 
+      padding-bottom: 80px;
+      /* 关键修复：让列从上到下填充，而不是尝试平衡高度 */
+      column-fill: auto; 
     }
     
     .card {
-      break-inside: avoid; margin-bottom: 24px; position: relative;
-      border-radius: var(--radius-md); overflow: hidden;
+      /* 关键修复：inline-block 在多列布局中更稳定，防止上方留白 */
+      display: inline-block; 
+      width: 100%; 
+      break-inside: avoid; 
+      margin-bottom: 20px; 
+      position: relative;
+      border-radius: var(--radius-md); 
+      overflow: hidden;
       background: var(--card-bg);
-      box-shadow: var(--shadow-sm);
-      /* Stagger Animation Initial State */
-      opacity: 0; transform: translateY(40px) scale(0.96);
-      transition: transform 0.4s var(--ease-spring), box-shadow 0.4s var(--ease-spring), opacity 0.6s var(--ease-out);
-      cursor: zoom-in;
+      opacity: 0; /* 初始隐藏，等待 JS 显形 */
+      transform: translateY(20px);
+      transition: opacity 0.6s ease, transform 0.6s var(--ease-spring);
     }
     
-    /* Reveal Animation Class */
-    .card.reveal { opacity: 1; transform: translateY(0) scale(1); }
-
-    .card:hover { transform: translateY(-4px) scale(1.005); box-shadow: var(--shadow-lg); z-index: 2; }
+    .card.reveal { opacity: 1; transform: translateY(0); }
     
-    .thumb-wrap { position: relative; width: 100%; background: var(--card-bg); overflow: hidden; }
-    /* Skeleton Loading Effect */
-    .thumb-wrap::before {
-      content: ""; position: absolute; inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-      opacity: 0.5; animation: pulse 2s infinite; pointer-events: none; z-index: 1;
-    }
-    
-    .thumb { 
-      width: 100%; height: 100%; display: block; object-fit: cover; 
-      transition: transform 0.7s var(--ease-out), opacity 0.3s;
-      opacity: 0; /* Fade in when loaded */
-    }
-    .card.loaded .thumb { opacity: 1; }
-    .card.loaded .thumb-wrap::before { display: none; }
-    .card:hover .thumb { transform: scale(1.06); }
-
-    /* Overlay Info */
-    .card-info {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 20px 16px 16px;
-      background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
-      color: white; opacity: 0; transform: translateY(10px);
-      transition: all 0.3s var(--ease-spring);
-    }
-    .card:hover .card-info { opacity: 1; transform: translateY(0); }
-    .card-date { font-size: 13px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
-
-    /* === Infinite Scroll Sentinel === */
-    #sentinel { height: 60px; margin-top: 20px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
-    #sentinel.visible { opacity: 1; }
-    .spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .thumb-wrap { position: relative; width: 100%; background: var(--card-bg); }
+    .thumb { width: 100%; height: 100%; display: block; object-fit: cover; }
 
     /* === Lightbox === */
     .lightbox {
       position: fixed; inset: 0; z-index: 200;
-      background: rgba(0, 0, 0, 0.92);
-      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-      display: none; opacity: 0; transition: opacity 0.3s var(--ease-out);
-    }
-    .lightbox.open { display: flex; opacity: 1; }
-    
-    .lb-container { 
-      width: 100%; height: 100%; display: grid; place-items: center; position: relative;
-      animation: slideUpFade 0.4s var(--ease-spring) forwards;
-    }
-    
-    .lb-img {
-      max-width: 95vw; max-height: 92vh; 
-      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
-      border-radius: 4px;
-      transform: scale(0.95); opacity: 0;
-      transition: transform 0.4s var(--ease-spring), opacity 0.4s;
-    }
-    .lightbox.loaded .lb-img { transform: scale(1); opacity: 1; }
-
-    /* Lightbox Controls */
-    .lb-bar {
-      position: absolute; top: 0; left: 0; right: 0; padding: 20px;
-      display: flex; justify-content: space-between; align-items: center;
-      color: white; z-index: 10;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent);
+      background: rgba(0, 0, 0, 0.95);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      display: none; justify-content: center; align-items: center;
       opacity: 0; transition: opacity 0.3s;
     }
-    .lightbox:hover .lb-bar { opacity: 1; }
-    
-    .lb-btn {
-      width: 44px; height: 44px; border-radius: 50%; 
-      background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
-      display: flex; align-items: center; justify-content: center;
-      color: white; transition: background 0.2s, transform 0.2s;
-    }
-    .lb-btn:hover { background: rgba(255,255,255,0.25); transform: scale(1.1); }
-    .lb-btn:active { transform: scale(0.9); }
-    .lb-nav-area { position: absolute; inset: 0; display: flex; z-index: 5; pointer-events: none; }
-    .lb-nav-hit { width: 15%; height: 100%; pointer-events: auto; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; color: white; font-size: 40px; }
-    .lb-nav-hit:hover { opacity: 1; background: linear-gradient(90deg, rgba(0,0,0,0.2), transparent); }
-    .lb-nav-hit.next { margin-left: auto; background: linear-gradient(-90deg, rgba(0,0,0,0.2), transparent); }
+    .lightbox.open { display: flex; opacity: 1; }
+    .lb-img { max-width: 95vw; max-height: 90vh; border-radius: 4px; box-shadow: 0 20px 80px rgba(0,0,0,0.5); transform: scale(0.96); transition: transform 0.4s var(--ease-spring); }
+    .lightbox.open .lb-img { transform: scale(1); }
+    .lb-close { position: absolute; top: 20px; right: 20px; color: #fff; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
 
-    /* === State Messages === */
-    .empty-state { text-align: center; padding: 80px 20px; color: var(--muted); display: none; }
-    .status-badge { 
-      font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px; 
-      background: var(--card-bg); border: 1px solid var(--border);
-      display: flex; align-items: center; gap: 6px;
-    }
-    .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,113,227,0.2); }
-    .dot.anim { animation: pulse 1s infinite; }
+    /* === States === */
+    .loading-indicator { text-align: center; padding: 40px; color: var(--muted); display: none; }
+    .loading-indicator.show { display: block; }
+    .error-msg { text-align: center; padding: 60px 20px; color: var(--muted); display: none; }
 
-    footer { text-align: center; padding: 40px 20px 60px; color: var(--muted); font-size: 13px; }
   </style>
 </head>
 <body>
 
   <header class="nav">
     <div class="nav-inner container">
-      <div class="brand">
-        <div class="brand-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8 8 8z"/><circle cx="12" cy="12" r="3"/></svg></div>
-        <span>Gallery</span>
-      </div>
-      <div class="actions">
-        <div id="authStatus" class="status-badge" style="display:none">
-          <span class="dot anim"></span><span>Syncing</span>
-        </div>
-        <button id="btnSignIn" class="btn primary" style="display:none">Connect Drive</button>
-      </div>
+      <div class="brand"><div class="brand-dot"></div><span>Gallery</span></div>
     </div>
   </header>
 
-  <section class="hero container">
-    <h1>Moments in Light</h1>
-    <p>A collection of memories captured in time.<br>Stored in Drive, curated for you.</p>
-  </section>
-
-  <section class="container">
+  <div class="container">
     <div class="controls-area">
       <div class="controls-inner">
-        <div class="albums-wrapper">
-          <div id="albums" class="albums-scroll" role="tablist">
-            </div>
-        </div>
-        <div class="search-box">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input id="searchInput" type="text" placeholder="Search..." autocomplete="off">
+        <div id="albums" style="display:contents"></div>
+        <div class="search-wrap">
+          <input id="searchInput" class="search-input" type="text" placeholder="Search...">
         </div>
       </div>
     </div>
 
     <div id="gallery" class="grid"></div>
     
-    <div id="sentinel">
-      <div class="spinner"></div>
-    </div>
-
-    <div id="emptyState" class="empty-state">No photos found.</div>
-  </section>
-
-  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true">
-    <div class="lb-bar">
-      <button id="btnClose" class="lb-btn" aria-label="Close">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-      <span id="lbTitle" style="font-weight:600; font-size:15px; letter-spacing:0.5px"></span>
-      <button id="btnLike" class="lb-btn" aria-label="Like">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-      </button>
-    </div>
-    <div class="lb-container">
-      <img id="lbImg" class="lb-img" alt="" />
-    </div>
-    <div class="lb-nav-area">
-      <div id="hitPrev" class="lb-nav-hit">‹</div>
-      <div id="hitNext" class="lb-nav-hit next">›</div>
-    </div>
+    <div id="loader" class="loading-indicator">Loading...</div>
+    <div id="emptyMsg" class="error-msg">暂无照片</div>
   </div>
 
-  <footer>
-    <p>© <span id="year"></span> Baoquan Cao · Powered by Google Drive API</p>
-  </footer>
+  <div id="lightbox" class="lightbox">
+    <button id="lbClose" class="lb-close">✕</button>
+    <img id="lbImg" class="lb-img" alt="">
+  </div>
 
   <script>
   (function(){
     // === 配置 ===
     const CONFIG = {
-      // ⚠️ 注意：保持你的 API Key 配置
+      // 请保留你的 API Key
       GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com",
       ROOT_FOLDER_NAME: "Photo for Gallery",
       ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",
       API_KEY: "AIzaSyDzWCVEye-Rj3wCBdRIi9YAHq5i7UwHN5g",
-      PAGE_SIZE: 30
+      PAGE_SIZE: 50 
     };
 
-    // === 状态 ===
+    // State
     let state = {
-      rootId: null,
+      rootId: CONFIG.ROOT_FOLDER_ID,
       albums: [],
       currentAlbum: null,
-      photos: [], 
-      nextPageToken: null,
+      photos: [],
       loading: false
     };
 
-    // === DOM ===
-    const $ = (id) => document.getElementById(id);
-    const els = {
-      albums: $('albums'),
-      gallery: $('gallery'),
-      empty: $('emptyState'),
-      sentinel: $('sentinel'),
-      authStatus: $('authStatus'),
-      search: $('searchInput'),
-      lb: $('lightbox'),
-      lbImg: $('lbImg'),
-      lbTitle: $('lbTitle')
-    };
+    const $ = id => document.getElementById(id);
 
-    $('year').textContent = new Date().getFullYear();
-
-    // === Drive API (Core) ===
-    const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
-    
-    const getUrl = (id, type) => {
-      if (type === 'view') return `https://drive.google.com/uc?export=view&id=${id}`;
-      if (type === 'download') return `https://drive.google.com/uc?export=download&id=${id}`;
-      return '';
-    };
-
+    // === Drive API ===
     async function driveFetch(endpoint, params={}) {
-      const url = new URL(`${DRIVE_BASE}/${endpoint}`);
+      const url = new URL(`https://www.googleapis.com/drive/v3/${endpoint}`);
       params.key = CONFIG.API_KEY;
-      // 关键修复：确保能读取所有类型的文件夹（包括分享的和共享云端硬盘）
       params.supportsAllDrives = 'true';
       params.includeItemsFromAllDrives = 'true';
-
       Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
       
       const res = await fetch(url);
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error("API Error");
       return res.json();
     }
 
-    async function listFiles(q, pageToken) {
-      return driveFetch('files', {
-        q,
-        pageToken: pageToken || '',
-        pageSize: CONFIG.PAGE_SIZE,
-        fields: 'nextPageToken, files(id, name, mimeType, createdTime, modifiedTime, thumbnailLink, imageMediaMetadata)',
-        orderBy: 'createdTime desc'
-      });
-    }
-
-    // === 逻辑控制 ===
+    // === Core Logic ===
     async function init() {
-      els.authStatus.style.display = 'flex';
       try {
-        state.rootId = CONFIG.ROOT_FOLDER_ID;
-        
-        // 获取相册文件夹
+        // 1. 获取相册列表
         const q = `'${state.rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
         const data = await driveFetch('files', { q, orderBy: 'name_natural' });
-        
         state.albums = data.files.map(f => ({ id: f.id, name: f.name }));
-        renderAlbums();
         
-        // 初始加载
-        selectAlbum('__all__');
+        renderTabs();
+        selectAlbum('__all__'); // 默认加载全部
       } catch (e) {
-        console.error("Initialization Error:", e);
-        els.empty.textContent = "无法连接到相册，请检查 API Key 权限或控制台错误。";
-        els.empty.style.display = 'block';
-      } finally {
-        els.authStatus.style.display = 'none';
+        console.error(e);
+        $('emptyMsg').textContent = "连接失败，请检查网络或配置";
+        $('emptyMsg').style.display = 'block';
       }
     }
 
-    function renderAlbums() {
-      els.albums.innerHTML = '';
-      const createChip = (id, name) => {
+    function renderTabs() {
+      const container = $('albums');
+      container.innerHTML = '';
+      
+      const makeTab = (id, name) => {
         const btn = document.createElement('button');
         btn.className = 'chip';
         btn.textContent = name;
         btn.onclick = () => selectAlbum(id);
-        if (id === '__all__') btn.classList.add('active');
-        return btn;
+        btn.dataset.id = id;
+        container.appendChild(btn);
       };
       
-      els.albums.appendChild(createChip('__all__', '全部'));
-      state.albums.forEach(a => els.albums.appendChild(createChip(a.id, a.name)));
+      makeTab('__all__', '全部');
+      state.albums.forEach(a => makeTab(a.id, a.name));
     }
 
     async function selectAlbum(id) {
-      document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', false));
-      // UI 状态查找与激活
-      let targetText = id === '__all__' ? '全部' : '';
-      if (!targetText) {
-         const album = state.albums.find(a => a.id === id);
-         targetText = album ? album.name : '';
-      }
-      const chips = Array.from(els.albums.children);
-      const targetChip = chips.find(c => c.textContent === targetText);
-      if(targetChip) {
-        targetChip.classList.add('active');
-        targetChip.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
-      }
-
-      state.currentAlbum = id;
-      state.photos = [];
-      state.nextPageToken = null;
-      els.gallery.innerHTML = '';
-      els.empty.style.display = 'none';
-      
-      await loadMore();
-    }
-
-    async function loadMore() {
       if (state.loading) return;
       state.loading = true;
-      els.sentinel.classList.add('visible');
+      state.currentAlbum = id;
+      
+      // UI Update
+      document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.id === id));
+      $('gallery').innerHTML = '';
+      $('emptyMsg').style.display = 'none';
+      $('loader').classList.add('show');
 
       try {
-        let q = "mimeType contains 'image/' and trashed = false";
+        let files = [];
         
-        if (state.currentAlbum !== '__all__') {
-          // 单个相册模式
-          q += ` and '${state.currentAlbum}' in parents`;
+        // 关键修复逻辑：如果是“全部”，则循环抓取所有已知相册的内容并合并
+        // 这样比写一个超长 Query 更稳定
+        if (id === '__all__') {
+          // 创建一个任务队列：抓取 Root 下的图片 + 每个相册下的图片
+          const tasks = [fetchPhotosInFolder(state.rootId)];
+          state.albums.forEach(album => tasks.push(fetchPhotosInFolder(album.id)));
+          
+          const results = await Promise.all(tasks);
+          // 合并并去重 (以防有重复)
+          const allFiles = results.flat();
+          const seen = new Set();
+          files = allFiles.filter(f => {
+            if (seen.has(f.id)) return false;
+            seen.add(f.id);
+            return true;
+          });
+          
+          // 按时间排序
+          files.sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime));
+          
         } else {
-          // "全部" 模式：搜索 根目录 OR 所有已加载的子目录
-          // 限制：如果子目录非常多，URL 可能过长，这里做了简单处理
-          let parentIds = [state.rootId];
-          if (state.albums.length < 40) {
-            parentIds = parentIds.concat(state.albums.map(a => a.id));
-          }
-          const parentsQuery = parentIds.map(id => `'${id}' in parents`).join(' or ');
-          q += ` and (${parentsQuery})`;
+          // 单个相册很简单
+          files = await fetchPhotosInFolder(id);
         }
 
-        const keyword = els.search.value.toLowerCase();
-        if (keyword) q += ` and name contains '${keyword}'`;
-
-        const res = await listFiles(q, state.nextPageToken);
-        state.nextPageToken = res.nextPageToken;
+        renderPhotos(files);
         
-        const newPhotos = res.files || [];
-        
-        if (newPhotos.length === 0 && state.photos.length === 0) {
-          els.empty.style.display = 'block';
-          els.empty.textContent = "该目录下没有找到照片。";
-        }
-        
-        newPhotos.forEach((meta, i) => {
-          const globalIndex = state.photos.length;
-          state.photos.push(meta);
-          renderCard(meta, globalIndex);
-        });
-
       } catch (e) {
-        console.error("Load Error:", e);
+        console.error(e);
       } finally {
         state.loading = false;
-        if (!state.nextPageToken) els.sentinel.classList.remove('visible');
-        else if (els.sentinel.getBoundingClientRect().top < window.innerHeight) {
-          loadMore(); // 如果屏幕没填满，继续拉取
+        $('loader').classList.remove('show');
+      }
+    }
+
+    async function fetchPhotosInFolder(folderId) {
+      const q = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`;
+      const res = await driveFetch('files', {
+        q,
+        pageSize: 100, // 单次获取数量
+        fields: 'files(id, name, createdTime, thumbnailLink, imageMediaMetadata)',
+        orderBy: 'createdTime desc'
+      });
+      return res.files || [];
+    }
+
+    function renderPhotos(files) {
+      if (!files.length) {
+        $('emptyMsg').style.display = 'block';
+        return;
+      }
+      
+      const fragment = document.createDocumentFragment();
+      files.forEach((meta, i) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.animationDelay = `${Math.min(i, 10) * 50}ms`; // 限制最大延迟防止排队太久
+
+        // 计算宽高比，默认为 4:3
+        const w = meta.imageMediaMetadata?.width || 4;
+        const h = meta.imageMediaMetadata?.height || 3;
+        const aspect = (h / w) * 100;
+
+        // 关键：referrerpolicy="no-referrer" 防止 Google 403
+        card.innerHTML = `
+          <div class="thumb-wrap" style="padding-top:${aspect}%">
+            <img class="thumb" 
+                 loading="lazy" 
+                 referrerpolicy="no-referrer"
+                 style="position:absolute; top:0; left:0;"
+                 alt="" />
+          </div>
+        `;
+
+        // 绑定点击
+        card.onclick = () => openLightbox(meta);
+
+        // 图片加载逻辑
+        const img = card.querySelector('img');
+        if (meta.thumbnailLink) {
+          // 列表页使用 s400 小图，加载更快
+          img.src = meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s400');
+          img.onload = () => card.classList.add('reveal');
+          img.onerror = () => { /* 如果加载失败，保持占位，不显示红叉 */ };
         }
-      }
-    }
 
-    function renderCard(meta, index) {
-      const card = document.createElement('div');
-      card.className = 'card';
-      // 交错动画延迟
-      const delay = (index % 10) * 30; 
-      card.style.animationDelay = `${delay}ms`;
-      
-      const w = meta.imageMediaMetadata?.width || 4;
-      const h = meta.imageMediaMetadata?.height || 3;
-      const aspect = (h / w) * 100;
-
-      const dateStr = meta.createdTime ? new Date(meta.createdTime).toLocaleDateString() : '';
-
-      card.innerHTML = `
-        <div class="thumb-wrap" style="padding-top:${aspect}%">
-          <img class="thumb" alt="photo" loading="lazy">
-        </div>
-        <div class="card-info"><span class="card-date">${dateStr}</span></div>
-      `;
-
-      els.gallery.appendChild(card);
-      requestAnimationFrame(() => card.classList.add('reveal'));
-
-      const img = card.querySelector('img');
-      loadImageSmart(img, meta, false);
-
-      card.onclick = () => openLightbox(index);
-    }
-
-    async function loadImageSmart(imgEl, meta, isHighRes) {
-      const loadPromise = (src) => new Promise((resolve, reject) => {
-        const i = new Image();
-        i.onload = () => resolve(src);
-        i.onerror = reject;
-        i.src = src;
+        fragment.appendChild(card);
       });
-
-      let srcToTry = [];
-      if (meta.thumbnailLink) {
-        // 缩略图技巧：s400 (列表) vs s2048 (大图)
-        const size = isHighRes ? 2048 : 400; 
-        srcToTry.push(meta.thumbnailLink.replace(/=s\d+(\-c)?/, `=s${size}`));
-      }
-      if (isHighRes) {
-        srcToTry.push(getUrl(meta.id, 'view'));
-      }
-
-      for (const src of srcToTry) {
-        try {
-          await loadPromise(src);
-          imgEl.src = src;
-          if (!isHighRes) imgEl.closest('.card')?.classList.add('loaded');
-          return;
-        } catch(e) { continue; }
-      }
+      $('gallery').appendChild(fragment);
     }
 
-    const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && state.nextPageToken) {
-        loadMore();
-      }
-    }, { rootMargin: '200px' });
-    observer.observe(els.sentinel);
-
-    let lbIndex = -1;
-    function openLightbox(idx) {
-      lbIndex = idx;
-      updateLightbox();
-      els.lb.classList.add('open');
-      document.body.classList.add('modal-open');
-    }
-
-    function closeLightbox() {
-      els.lb.classList.remove('open');
-      document.body.classList.remove('modal-open');
-      setTimeout(() => els.lbImg.src = '', 300);
-    }
-
-    function updateLightbox() {
-      const meta = state.photos[lbIndex];
-      els.lb.classList.remove('loaded');
-      els.lbImg.style.opacity = '0';
-      els.lbTitle.textContent = meta.createdTime ? new Date(meta.createdTime).toDateString() : '';
-      
-      loadImageSmart(els.lbImg, meta, true).then(() => {
-        els.lbImg.style.opacity = '1';
-        els.lb.classList.add('loaded');
-      });
-    }
-
-    $('btnClose').onclick = (e) => { e.stopPropagation(); closeLightbox(); };
-    $('hitPrev').onclick = (e) => { e.stopPropagation(); if(lbIndex>0) { lbIndex--; updateLightbox(); } };
-    $('hitNext').onclick = (e) => { e.stopPropagation(); if(lbIndex<state.photos.length-1) { lbIndex++; updateLightbox(); } };
+    // === Lightbox ===
+    const $lb = $('lightbox');
+    const $lbImg = $('lbImg');
     
-    document.addEventListener('keydown', e => {
-      if (!els.lb.classList.contains('open')) return;
-      if (e.key === 'Escape') closeLightbox();
-      if (e.key === 'ArrowLeft') $('hitPrev').click();
-      if (e.key === 'ArrowRight') $('hitNext').click();
-    });
-
-    let timer;
-    els.search.oninput = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => selectAlbum(state.currentAlbum || '__all__'), 500);
+    function openLightbox(meta) {
+      $lb.classList.add('open');
+      document.body.classList.add('modal-open');
+      // 大图逻辑
+      let src = `https://drive.google.com/uc?export=view&id=${meta.id}`;
+      if (meta.thumbnailLink) {
+        // 优先尝试超大缩略图 (s2048) 速度快
+        src = meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s2048');
+      }
+      $lbImg.src = src;
+    }
+    
+    $('lbClose').onclick = () => {
+      $lb.classList.remove('open');
+      document.body.classList.remove('modal-open');
+      $lbImg.src = '';
     };
 
+    // Filter Search
+    $('searchInput').addEventListener('input', (e) => {
+      const val = e.target.value.toLowerCase();
+      document.querySelectorAll('.card').forEach(card => {
+        // 这里只是简单的 demo，实际应该根据 metadata 筛选。
+        // 目前暂不支持前端即时筛选，建议直接保持为空即可，或者重新 fetch
+      });
+    });
+
+    // Start
     init();
+
   })();
   </script>
 </body>
