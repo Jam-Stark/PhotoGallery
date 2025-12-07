@@ -341,7 +341,7 @@
       ROOT_FOLDER_NAME: "Photo for Gallery",
       ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",
       API_KEY: "AIzaSyDzWCVEye-Rj3wCBdRIi9YAHq5i7UwHN5g",
-      PAGE_SIZE: 30 // 稍微减小单次请求量，依靠无限滚动
+      PAGE_SIZE: 30
     };
 
     // === 状态 ===
@@ -349,7 +349,7 @@
       rootId: null,
       albums: [],
       currentAlbum: null,
-      photos: [], // 当前展示的图片列表
+      photos: [], 
       nextPageToken: null,
       loading: false
     };
@@ -373,7 +373,6 @@
     // === Drive API (Core) ===
     const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
     
-    // 关键优化：根据场景选择 URL
     const getUrl = (id, type) => {
       if (type === 'view') return `https://drive.google.com/uc?export=view&id=${id}`;
       if (type === 'download') return `https://drive.google.com/uc?export=download&id=${id}`;
@@ -383,6 +382,10 @@
     async function driveFetch(endpoint, params={}) {
       const url = new URL(`${DRIVE_BASE}/${endpoint}`);
       params.key = CONFIG.API_KEY;
+      // 关键修复：确保能读取所有类型的文件夹（包括分享的和共享云端硬盘）
+      params.supportsAllDrives = 'true';
+      params.includeItemsFromAllDrives = 'true';
+
       Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
       
       const res = await fetch(url);
@@ -404,21 +407,21 @@
     async function init() {
       els.authStatus.style.display = 'flex';
       try {
-        // 1. 获取根目录 (如果未配置 ID 则搜索)
-        state.rootId = CONFIG.ROOT_FOLDER_ID; // 假设 ID 已知，省略搜索步骤以加快速度
+        state.rootId = CONFIG.ROOT_FOLDER_ID;
         
-        // 2. 获取相册文件夹
+        // 获取相册文件夹
         const q = `'${state.rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
         const data = await driveFetch('files', { q, orderBy: 'name_natural' });
         
         state.albums = data.files.map(f => ({ id: f.id, name: f.name }));
         renderAlbums();
         
-        // 3. 初始加载全部
+        // 初始加载
         selectAlbum('__all__');
       } catch (e) {
-        console.error(e);
-        alert('Could not connect to Drive. Please check console.');
+        console.error("Initialization Error:", e);
+        els.empty.textContent = "无法连接到相册，请检查 API Key 权限或控制台错误。";
+        els.empty.style.display = 'block';
       } finally {
         els.authStatus.style.display = 'none';
       }
@@ -435,20 +438,25 @@
         return btn;
       };
       
-      els.albums.appendChild(createChip('__all__', 'All Photos'));
+      els.albums.appendChild(createChip('__all__', '全部'));
       state.albums.forEach(a => els.albums.appendChild(createChip(a.id, a.name)));
     }
 
     async function selectAlbum(id) {
-      // UI 更新
       document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', false));
-      const targetChip = Array.from(els.albums.children).find(c => c.textContent === (id==='__all__'?'All Photos':state.albums.find(a=>a.id===id).name));
+      // UI 状态查找与激活
+      let targetText = id === '__all__' ? '全部' : '';
+      if (!targetText) {
+         const album = state.albums.find(a => a.id === id);
+         targetText = album ? album.name : '';
+      }
+      const chips = Array.from(els.albums.children);
+      const targetChip = chips.find(c => c.textContent === targetText);
       if(targetChip) {
         targetChip.classList.add('active');
         targetChip.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
       }
 
-      // 状态重置
       state.currentAlbum = id;
       state.photos = [];
       state.nextPageToken = null;
@@ -465,16 +473,160 @@
 
       try {
         let q = "mimeType contains 'image/' and trashed = false";
+        
         if (state.currentAlbum !== '__all__') {
+          // 单个相册模式
           q += ` and '${state.currentAlbum}' in parents`;
         } else {
-          // 在 "全部" 模式下，搜索所有子文件夹略复杂，这里简化为搜索根目录下所有文件
-          // 实际生产中最好平铺结构，或者递归搜索 (耗时)
-          // 为演示效果，这里只搜索已加载的相册里的图片
-           const parents = [state.rootId, ...state.albums.map(a=>a.id)].map(id=>`'${id}' in parents`).join(' or ');
-           q += ` and (${parents})`;
+          // "全部" 模式：搜索 根目录 OR 所有已加载的子目录
+          // 限制：如果子目录非常多，URL 可能过长，这里做了简单处理
+          let parentIds = [state.rootId];
+          if (state.albums.length < 40) {
+            parentIds = parentIds.concat(state.albums.map(a => a.id));
+          }
+          const parentsQuery = parentIds.map(id => `'${id}' in parents`).join(' or ');
+          q += ` and (${parentsQuery})`;
         }
 
-        // 搜索过滤
         const keyword = els.search.value.toLowerCase();
         if (keyword) q += ` and name contains '${keyword}'`;
+
+        const res = await listFiles(q, state.nextPageToken);
+        state.nextPageToken = res.nextPageToken;
+        
+        const newPhotos = res.files || [];
+        
+        if (newPhotos.length === 0 && state.photos.length === 0) {
+          els.empty.style.display = 'block';
+          els.empty.textContent = "该目录下没有找到照片。";
+        }
+        
+        newPhotos.forEach((meta, i) => {
+          const globalIndex = state.photos.length;
+          state.photos.push(meta);
+          renderCard(meta, globalIndex);
+        });
+
+      } catch (e) {
+        console.error("Load Error:", e);
+      } finally {
+        state.loading = false;
+        if (!state.nextPageToken) els.sentinel.classList.remove('visible');
+        else if (els.sentinel.getBoundingClientRect().top < window.innerHeight) {
+          loadMore(); // 如果屏幕没填满，继续拉取
+        }
+      }
+    }
+
+    function renderCard(meta, index) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      // 交错动画延迟
+      const delay = (index % 10) * 30; 
+      card.style.animationDelay = `${delay}ms`;
+      
+      const w = meta.imageMediaMetadata?.width || 4;
+      const h = meta.imageMediaMetadata?.height || 3;
+      const aspect = (h / w) * 100;
+
+      const dateStr = meta.createdTime ? new Date(meta.createdTime).toLocaleDateString() : '';
+
+      card.innerHTML = `
+        <div class="thumb-wrap" style="padding-top:${aspect}%">
+          <img class="thumb" alt="photo" loading="lazy">
+        </div>
+        <div class="card-info"><span class="card-date">${dateStr}</span></div>
+      `;
+
+      els.gallery.appendChild(card);
+      requestAnimationFrame(() => card.classList.add('reveal'));
+
+      const img = card.querySelector('img');
+      loadImageSmart(img, meta, false);
+
+      card.onclick = () => openLightbox(index);
+    }
+
+    async function loadImageSmart(imgEl, meta, isHighRes) {
+      const loadPromise = (src) => new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(src);
+        i.onerror = reject;
+        i.src = src;
+      });
+
+      let srcToTry = [];
+      if (meta.thumbnailLink) {
+        // 缩略图技巧：s400 (列表) vs s2048 (大图)
+        const size = isHighRes ? 2048 : 400; 
+        srcToTry.push(meta.thumbnailLink.replace(/=s\d+(\-c)?/, `=s${size}`));
+      }
+      if (isHighRes) {
+        srcToTry.push(getUrl(meta.id, 'view'));
+      }
+
+      for (const src of srcToTry) {
+        try {
+          await loadPromise(src);
+          imgEl.src = src;
+          if (!isHighRes) imgEl.closest('.card')?.classList.add('loaded');
+          return;
+        } catch(e) { continue; }
+      }
+    }
+
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && state.nextPageToken) {
+        loadMore();
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(els.sentinel);
+
+    let lbIndex = -1;
+    function openLightbox(idx) {
+      lbIndex = idx;
+      updateLightbox();
+      els.lb.classList.add('open');
+      document.body.classList.add('modal-open');
+    }
+
+    function closeLightbox() {
+      els.lb.classList.remove('open');
+      document.body.classList.remove('modal-open');
+      setTimeout(() => els.lbImg.src = '', 300);
+    }
+
+    function updateLightbox() {
+      const meta = state.photos[lbIndex];
+      els.lb.classList.remove('loaded');
+      els.lbImg.style.opacity = '0';
+      els.lbTitle.textContent = meta.createdTime ? new Date(meta.createdTime).toDateString() : '';
+      
+      loadImageSmart(els.lbImg, meta, true).then(() => {
+        els.lbImg.style.opacity = '1';
+        els.lb.classList.add('loaded');
+      });
+    }
+
+    $('btnClose').onclick = (e) => { e.stopPropagation(); closeLightbox(); };
+    $('hitPrev').onclick = (e) => { e.stopPropagation(); if(lbIndex>0) { lbIndex--; updateLightbox(); } };
+    $('hitNext').onclick = (e) => { e.stopPropagation(); if(lbIndex<state.photos.length-1) { lbIndex++; updateLightbox(); } };
+    
+    document.addEventListener('keydown', e => {
+      if (!els.lb.classList.contains('open')) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') $('hitPrev').click();
+      if (e.key === 'ArrowRight') $('hitNext').click();
+    });
+
+    let timer;
+    els.search.oninput = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => selectAlbum(state.currentAlbum || '__all__'), 500);
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>
