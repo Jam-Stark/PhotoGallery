@@ -52,6 +52,7 @@
       display: block; width: 100%; height: auto; object-fit: cover; 
       background: var(--card-bg); /* 加载前背景色 */
       min-height: 100px; /* 防止高度塌陷 */
+      transition: opacity 0.3s; /* 图片加载时的淡入效果 */
     }
     
     /* 渐变信息层 */
@@ -80,7 +81,7 @@
 
   <header class="nav">
     <div class="nav-inner container">
-      <div class="brand"><div class="brand-dot"></div><span>Baoquan's Gallery</span></div>
+      <div class="brand"><div class="brand-dot"></div><span>Gallery</span></div>
     </div>
   </header>
 
@@ -123,6 +124,24 @@
     };
 
     const $ = id => document.getElementById(id);
+
+    // === 核心：懒加载观察者 ===
+    // 只有当图片即将进入视口（margin: 200px）时，才将 data-src 赋值给 src，触发下载
+    const imgObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const img = entry.target;
+          const src = img.dataset.src;
+          if (src) {
+            img.src = src;
+            img.removeAttribute('data-src');
+            // 加载完成后设置透明度为 1 (配合 CSS transition)
+            img.onload = () => img.style.opacity = 1;
+          }
+          observer.unobserve(img); // 只加载一次，停止观察
+        }
+      });
+    }, { rootMargin: "200px" }); // 提前 200px 开始加载，保证体验
 
     // === 核心逻辑：创建列 ===
     function setupGrid() {
@@ -261,15 +280,15 @@
         const date = meta.createdTime ? new Date(meta.createdTime).toLocaleDateString() : '';
         const src = meta.thumbnailLink ? meta.thumbnailLink.replace(/=s\d+(\-c)?/, '=s500') : '';
 
-        // 🟢 关键修复点：
-        // 1. referrerpolicy="no-referrer" 防止 403 Forbidden
-        // 2. onerror="this.closest('.card').remove()" 如果图片真的挂了，直接移除该卡片，不留空白
+        // 🟢 修改点：使用 data-src + IntersectionObserver 替代原生 loading="lazy"
+        // 1. data-src: 暂存地址，不消耗流量
+        // 2. opacity: 0: 初始透明，JS 加载完后变 1
+        // 3. referrerpolicy="no-referrer": 必带，防 403
         card.innerHTML = `
            <img class="thumb" 
-                src="${src}" 
-                loading="lazy" 
+                data-src="${src}" 
                 referrerpolicy="no-referrer"
-                style="aspect-ratio: ${1/aspectRatio}" 
+                style="aspect-ratio: ${1/aspectRatio}; opacity: 0;" 
                 onerror="this.parentElement.style.display='none'" 
            />
            <div class="meta">${date}</div>
@@ -277,11 +296,15 @@
         
         card.onclick = () => openLightbox(meta);
 
+        // 注册到观察者
+        const img = card.querySelector('img');
+        imgObserver.observe(img);
+
         // 轮询插入列 (1 -> Col 1, 2 -> Col 2...)
         const targetColIndex = i % state.colCount;
         state.columns[targetColIndex].appendChild(card);
 
-        // 动画
+        // 卡片本身的入场动画 (transform)
         setTimeout(() => card.classList.add('reveal'), Math.min(i, 20) * 40); 
       });
     }
