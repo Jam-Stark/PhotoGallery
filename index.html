@@ -108,11 +108,7 @@
   (function(){
     // === CONFIG ===
     const CONFIG = {
-      // ⚠️ 确保你的 API Key 正确
-      GOOGLE_CLIENT_ID: "55479337747-mtssp3ne22ut8chvecuuj5ljrjqj3mh7.apps.googleusercontent.com",
-      ROOT_FOLDER_NAME: "Photo for Gallery",
-      ROOT_FOLDER_ID: "1yj80gvI38UaaIy7HRCZbYJ6sLUS-a9Tw",
-      API_KEY: "AIzaSyDzWCVEye-Rj3wCBdRIi9YAHq5i7UwHN5g",
+      DATA_URL: "./gallery-data.json",
     };
 
     let state = {
@@ -120,7 +116,10 @@
       currentAlbum: null,
       loading: false,
       columns: [], 
-      colCount: 0
+      colCount: 0,
+      rootFolderId: null,
+      allPhotos: [],
+      photosByAlbum: {},
     };
 
     const $ = id => document.getElementById(id);
@@ -169,19 +168,6 @@
       }
     }
 
-    // === Drive API ===
-    async function driveFetch(endpoint, params={}) {
-      const url = new URL(`https://www.googleapis.com/drive/v3/${endpoint}`);
-      params.key = CONFIG.API_KEY;
-      params.supportsAllDrives = 'true';
-      params.includeItemsFromAllDrives = 'true';
-      Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
-      
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("API Error");
-      return res.json();
-    }
-
     async function init() {
       setupGrid();
       window.addEventListener('resize', () => {
@@ -190,13 +176,17 @@
       });
 
       try {
-        const q = `'${CONFIG.ROOT_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-        const data = await driveFetch('files', { q, orderBy: 'name_natural' });
-        state.albums = data.files.map(f => ({ id: f.id, name: f.name }));
+        const res = await fetch(CONFIG.DATA_URL, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Data fetch failed');
+        const data = await res.json();
+        state.albums = data.albums || [];
+        state.rootFolderId = data.rootFolderId || null;
+        state.allPhotos = data.allPhotos || [];
+        state.photosByAlbum = data.photosByAlbum || {};
         renderTabs();
         selectAlbum('__all__');
       } catch(e) { 
-        $('msg').innerHTML = "无法连接 Google Drive，请检查网络";
+        $('msg').innerHTML = "无法加载照片数据，请稍后刷新重试";
         $('msg').style.display = 'block';
       }
     }
@@ -231,17 +221,9 @@
 
       try {
         let files = [];
-        if (id === '__all__') {
-            const tasks = [fetchPhotos(CONFIG.ROOT_FOLDER_ID, 30)];
-            state.albums.forEach(a => tasks.push(fetchPhotos(a.id, 30)));
-            const res = await Promise.all(tasks);
-            const all = res.flat();
-            const seen = new Set();
-            files = all.filter(f => !seen.has(f.id) && seen.add(f.id));
-        } else {
-            files = await fetchPhotos(id, 100);
-        }
-        
+        if (id === '__all__') files = state.allPhotos;
+        else files = state.photosByAlbum[id] || [];
+
         files.sort((a,b) => new Date(b.createdTime) - new Date(a.createdTime));
         renderPhotos(files);
 
@@ -250,14 +232,6 @@
         state.loading = false; 
         $('msg').style.display = 'none'; 
       }
-    }
-
-    async function fetchPhotos(pid, size) {
-      const q = `'${pid}' in parents and mimeType contains 'image/' and trashed = false`;
-      const res = await driveFetch('files', { 
-        q, pageSize: size, fields: 'files(id, thumbnailLink, createdTime, imageMediaMetadata)', orderBy: 'createdTime desc' 
-      });
-      return res.files || [];
     }
 
     // === 渲染核心 ===
