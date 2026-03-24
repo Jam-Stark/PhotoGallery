@@ -38,3 +38,21 @@ jobs:
           git add gallery-data.json
           git commit -m "chore: refresh gallery data"
           git push
+
+      - name: Send failure notification email
+        if: ${{ failure() && secrets.ALERT_EMAIL_TO != '' && secrets.ALERT_EMAIL_FROM != '' && secrets.SMTP_HOST != '' && secrets.SMTP_PORT != '' && secrets.SMTP_USERNAME != '' && secrets.SMTP_PASSWORD != '' }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "[PhotoGallery] Workflow failed: refresh-gallery-data"
+          to: ${{ secrets.ALERT_EMAIL_TO }}
+          from: ${{ secrets.ALERT_EMAIL_FROM }}
+          body: |
+            Workflow: ${{ github.workflow }}
+            Job: ${{ github.job }}
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
