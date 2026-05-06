@@ -120,9 +120,8 @@ def prepare_static_photo(photo: Dict, assets_dir: str, width: int, refresh_asset
     if asset_path:
         photo["assetPath"] = asset_path
 
-    # The Drive API thumbnailLink is short-lived, so do not publish it into
-    # gallery-data.json. The cached asset is the stable public URL.
-    photo.pop("thumbnailLink", None)
+    # Keep thumbnailLink as a browser fallback while GitHub Pages cached assets
+    # catch up. The frontend still prefers assetPath when it exists.
 
 
 def list_albums(api_key: str, root_folder_id: str) -> List[Dict]:
