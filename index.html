@@ -177,6 +177,10 @@
       return Array.from(new Set(sources));
     }
 
+    function hasPrimaryImageSource(meta) {
+      return Boolean(meta.assetPath || meta.thumbnailPath || meta.thumbnailLink);
+    }
+
     function isNearViewport(el) {
       const rect = el.getBoundingClientRect();
       const margin = window.innerHeight * 2;
@@ -340,13 +344,15 @@
 
     // === 渲染核心 ===
     function renderPhotos(files) {
-      if(!files.length) { 
+      const visibleFiles = files.filter(hasPrimaryImageSource);
+
+      if(!visibleFiles.length) {
         $('msg').innerHTML = '暂无照片'; 
         $('msg').style.display='block'; 
         return; 
       }
       
-      files.forEach((meta, i) => {
+      visibleFiles.forEach((meta, i) => {
         const card = document.createElement('div');
         card.className = 'card';
         
