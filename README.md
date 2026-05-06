@@ -8,3 +8,5 @@ https://jam-stark.github.io/PhotoGallery/
 
 > 提醒：由于图片资源依赖 Google 服务，部分网络环境可能无法直接访问，建议开启 VPN。
 一个纯前端的照片画廊页面。为了避免在前端暴露 Google Drive API Key，仓库改为通过 GitHub Actions 周期性拉取 Drive 元数据并生成静态文件 `gallery-data.json`，前端只读取这个静态 JSON。
+
+现在 GitHub Actions 还会把网页展示用的图片缓存到 `photos/` 目录，并让前端优先从 GitHub Pages 读取本地缓存。这样页面展示不再依赖浏览器直接访问 Google Drive；Drive 链接只保留为缓存缺失时的兜底。

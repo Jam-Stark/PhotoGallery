@@ -13,10 +13,13 @@ import sys
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List
 
 API_BASE = "https://www.googleapis.com/drive/v3/files"
 DEFAULT_OUTPUT = "gallery-data.json"
+DEFAULT_ASSETS_DIR = "photos"
+DEFAULT_ASSET_WIDTH = 1200
 
 
 def _require_env(name: str) -> str:
@@ -54,6 +57,72 @@ def drive_files_query(api_key: str, query: str, fields: str, order_by: str, page
             break
 
     return all_files
+
+
+def drive_thumbnail_url(file_id: str, width: int) -> str:
+    return (
+        "https://drive.google.com/thumbnail?"
+        f"id={urllib.parse.quote(file_id)}&sz=w{width}"
+    )
+
+
+def sized_thumbnail_link(thumbnail_link: str, width: int) -> str:
+    if "=s" in thumbnail_link:
+        base, _sep, _size = thumbnail_link.rpartition("=s")
+        return f"{base}=s{width}"
+    return thumbnail_link
+
+
+def cache_photo_asset(photo: Dict, assets_dir: str, width: int, refresh: bool) -> str | None:
+    file_id = photo.get("id")
+    if not file_id:
+        return None
+
+    asset_rel_path = f"{assets_dir.rstrip('/')}/{file_id}.jpg"
+    asset_path = Path(asset_rel_path)
+
+    if asset_path.exists() and asset_path.stat().st_size > 0 and not refresh:
+        return asset_rel_path
+
+    asset_path.parent.mkdir(parents=True, exist_ok=True)
+
+    candidates = []
+    thumbnail_link = photo.get("thumbnailLink")
+    if thumbnail_link:
+        candidates.append(sized_thumbnail_link(thumbnail_link, width))
+    candidates.append(drive_thumbnail_url(file_id, width))
+
+    for url in candidates:
+        try:
+            request = urllib.request.Request(
+                url,
+                headers={"User-Agent": "PhotoGallery/1.0"},
+            )
+            with urllib.request.urlopen(request, timeout=45) as resp:
+                content_type = resp.headers.get("Content-Type", "")
+                data = resp.read()
+
+            if not data or not content_type.startswith("image/"):
+                raise ValueError(f"unexpected content type: {content_type or 'unknown'}")
+
+            tmp_path = asset_path.with_suffix(".tmp")
+            tmp_path.write_bytes(data)
+            os.replace(tmp_path, asset_path)
+            return asset_rel_path
+        except Exception as exc:
+            print(f"Warning: failed to cache {file_id} from {url}: {exc}", file=sys.stderr)
+
+    return asset_rel_path if asset_path.exists() and asset_path.stat().st_size > 0 else None
+
+
+def prepare_static_photo(photo: Dict, assets_dir: str, width: int, refresh_assets: bool) -> None:
+    asset_path = cache_photo_asset(photo, assets_dir, width, refresh_assets)
+    if asset_path:
+        photo["assetPath"] = asset_path
+
+    # The Drive API thumbnailLink is short-lived, so do not publish it into
+    # gallery-data.json. The cached asset is the stable public URL.
+    photo.pop("thumbnailLink", None)
 
 
 def list_albums(api_key: str, root_folder_id: str) -> List[Dict]:
@@ -100,6 +169,9 @@ def main() -> None:
     api_key = _require_env("GDRIVE_API_KEY")
     root_folder_id = _require_env("ROOT_FOLDER_ID")
     output_path = os.getenv("OUTPUT_PATH", DEFAULT_OUTPUT)
+    assets_dir = os.getenv("ASSETS_DIR", DEFAULT_ASSETS_DIR)
+    asset_width = int(os.getenv("ASSET_WIDTH", str(DEFAULT_ASSET_WIDTH)))
+    refresh_assets = os.getenv("REFRESH_ASSETS", "").lower() in {"1", "true", "yes"}
 
     albums = list_albums(api_key, root_folder_id)
 
@@ -118,6 +190,10 @@ def main() -> None:
         for photo in photos:
             if photo["id"]:
                 all_photos[photo["id"]] = photo
+
+    for photos in photos_by_album.values():
+        for photo in photos:
+            prepare_static_photo(photo, assets_dir, asset_width, refresh_assets)
 
     data = {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
