@@ -55,7 +55,7 @@
       transition: opacity 0.3s; /* 图片加载时的淡入效果 */
     }
     .card.image-failed::before {
-      content: "图片暂时无法加载";
+      content: "正在重试加载...";
       position: absolute;
       inset: 0;
       display: flex;
@@ -135,24 +135,30 @@
 
     const $ = id => document.getElementById(id);
 
-    const IMAGE_LOAD_TIMEOUT_MS = 10000;
+    const IMAGE_LOAD_TIMEOUT_MS = 30000;
+    const IMAGE_RETRY_DELAY_MS = 3000;
 
     // === 核心：懒加载观察者 ===
-    // 只有当图片即将进入视口（margin: 200px）时，才触发下载
+    // 只有当图片即将进入视口（margin: 800px）时，才触发下载
     const imgObserver = new IntersectionObserver((entries, observer) => {
       entries.forEach(entry => {
+        const img = entry.target;
+        img._isNearViewport = entry.isIntersecting;
+
         if (entry.isIntersecting) {
-          const img = entry.target;
-          loadImageWithFallback(img, img._sources || [], () => {
-            img.closest('.card')?.classList.add('image-failed');
-          });
-          observer.unobserve(img); // 只加载一次，停止观察
+          ensureImageLoad(img);
+        } else if (img._loadState === 'loaded') {
+          observer.unobserve(img);
         }
       });
-    }, { rootMargin: "200px" }); // 提前 200px 开始加载，保证体验
+    }, { rootMargin: "800px" }); // 提前开始加载，快速滚动时也尽量跟上
 
     function driveThumbnailUrl(id, width) {
       return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${width}`;
+    }
+
+    function driveViewUrl(id) {
+      return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(id)}`;
     }
 
     function sizedThumbnailLink(link, width) {
@@ -165,30 +171,69 @@
         meta.thumbnailPath,
         meta.thumbnailLink ? sizedThumbnailLink(meta.thumbnailLink, width) : '',
         meta.id ? driveThumbnailUrl(meta.id, width) : '',
+        meta.id ? driveViewUrl(meta.id) : '',
       ].filter(Boolean);
 
       return Array.from(new Set(sources));
     }
 
+    function isNearViewport(el) {
+      const rect = el.getBoundingClientRect();
+      const margin = window.innerHeight * 2;
+      return rect.bottom >= -margin && rect.top <= window.innerHeight + margin;
+    }
+
+    function scheduleImageRetry(img) {
+      clearTimeout(img._retryTimer);
+      if (!img.isConnected || img._loadState === 'loaded') return;
+
+      img._retryTimer = setTimeout(() => {
+        if (!img.isConnected || img._loadState === 'loaded') return;
+        if (img._isNearViewport || isNearViewport(img)) ensureImageLoad(img, true);
+      }, IMAGE_RETRY_DELAY_MS);
+    }
+
+    function ensureImageLoad(img, force = false) {
+      if (img._loadState === 'loaded') return;
+      if (img._loadState === 'loading' && !force) return;
+
+      clearTimeout(img._retryTimer);
+      img.closest('.card')?.classList.remove('image-failed');
+      loadImageWithFallback(img, img._sources || [], () => {
+        img.closest('.card')?.classList.add('image-failed');
+        scheduleImageRetry(img);
+      });
+    }
+
     function loadImageWithFallback(img, sources, onFail) {
       let index = 0;
       let timer = null;
+      const attemptId = (img._attemptId || 0) + 1;
+      img._attemptId = attemptId;
+      img._loadState = 'loading';
 
       img.onload = () => {
+        if (img._attemptId !== attemptId) return;
         clearTimeout(timer);
+        img._loadState = 'loaded';
+        img.closest('.card')?.classList.remove('image-failed');
         img.style.opacity = 1;
+        imgObserver.unobserve(img);
       };
 
       img.onerror = () => {
+        if (img._attemptId !== attemptId) return;
         clearTimeout(timer);
         loadNext();
       };
 
       function loadNext() {
+        if (img._attemptId !== attemptId) return;
         clearTimeout(timer);
         if (index >= sources.length) {
           img.removeAttribute('src');
           img.style.opacity = 0;
+          img._loadState = 'failed';
           if (onFail) onFail();
           return;
         }
