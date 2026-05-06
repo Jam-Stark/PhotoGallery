@@ -149,6 +149,9 @@ def list_photos(api_key: str, folder_id: str) -> List[Dict]:
 
     normalized = []
     for photo in photos:
+        if not photo.get("thumbnailLink"):
+            continue
+
         metadata = photo.get("imageMediaMetadata") or {}
         normalized.append(
             {
